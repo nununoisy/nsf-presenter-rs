@@ -1,0 +1,35 @@
+[package]
+name = "nsf-presenter-rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[profile.dev]
+overflow-checks = false
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+[dependencies]
+rusticnes-core = { path = "external/rusticnes-core" }
+rusticnes-ui-common = { path = "external/rusticnes-ui-common" }
+ffmpeg-next = "6.0.0"
+ffmpeg-sys-next = "6.0.1"
+clap = "4.2.1"
+indicatif = "0.17.3"
+image = "0.19.0"
+build-time = "0.1.2"
+fltk = "^1.4"
+fltk-theme = "0.7.0"
+
+[target.'cfg(windows)'.dependencies]
+fltk = { version = "^1.4", features = ["fltk-bundled"] }
+
+[patch."https://github.com/zeta0134/rusticnes-core"]
+rusticnes-core = { path = "external/rusticnes-core" }
+
+[patch."https://github.com/zeta0134/rusticnes-ui-common"]
+rusticnes-ui-common = { path = "external/rusticnes-ui-common" }
