@@ -1,0 +1,9 @@
+Cargo.lock
+target/
+tests/
+**/*.rs.bk
+*.nes
+*.zip
+*.ogg
+*.flac
+*.raw

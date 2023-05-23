@@ -1,0 +1,75 @@
+
+InputTranslator (receives, binds, and emits input events)
+FrameClockGenerator (manages update and draw timing for emulation state)
+
+ApplicationState (single source of truth for application)
+Contains:
+--- NesState (contains controller configuration?)
+--- CartridgeState (mapper later?) (is a file loaded, header details, etc etc)
+--- RunState (running, paused, breakpoint triggered, etc)
+
+This object is passed read-only to other components along with events, and can be
+passively polled to read the current application state. To modify this state, other
+objects send events with the requested changes.
+
+ApplicationState events - these all *change* state in some way
+
+NesState
+--------
+
+NesStep
+- NesState is advanced by one cycle
+
+NesRunScanline
+- NesState is advanced by one scanline (341 PPU cycles on NTSC)
+
+NesRunFrame
+- NesState is advanced until the next NMI (whether enabled or not)
+
+NesPowerCycle
+- NesState is completely reinitialized with the loaded file (cached into CartridgeState)
+- RunState is unchanged
+
+NesReset
+- NesState.reset() is called
+
+Note: the various NesState advancing functions will all silently fail while there is no cartridge loaded,
+regardless of run state.
+
+RunState
+--------
+
+RunStart, RunStop
+- RunState is set to running / stopped
+
+Note: the application generally opens in running mode; this will have no effect until a cartridge is loaded.
+
+
+CartridgeState
+--------------
+
+LoadCartridge(&[u8])
+- Performs a full cartridge load from the provided raw data
+--- Does *not* load the file from disk. That is handled by platform code.
+- On success, 
+--- emits CartridgeLoaded event for UI to process
+--- NesState is PowerCycle'd
+- On failure:
+--- emits a CartridgeFailed event
+--- stores the last error message in CartridgeState
+--- stores the failing header data in CartridgeState
+
+ClearCartridge
+- CartridgeState is re-initialized, and all data cleared
+- NesState is effectively PowerCycle'd
+- Because CartridgeState.loaded() will now return false, emulation should stop regardless of RunState.
+
+Note: this is the ideal place to handle things like FDS disk swapping, but as that's not implemented,
+we are ignoring these problems for now.
+
+
+
+
+
+
+
