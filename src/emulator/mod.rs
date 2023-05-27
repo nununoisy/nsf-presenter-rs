@@ -6,7 +6,7 @@ mod emulator;
 use std::fmt::{Display, Formatter};
 
 pub use emulator::Emulator;
-pub use nsf::NsfDriverType;
+pub use nsf::{Nsf, NsfDriverType};
 pub const NES_NTSC_FRAMERATE: f64 = 1789772.7272727 / 29780.5;
 pub const NES_PAL_FRAMERATE: f64 = 1662607.0 / 33247.5;
 

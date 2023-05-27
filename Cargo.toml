@@ -2,6 +2,7 @@
 name = "nsf-presenter-rs"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -22,8 +23,13 @@ clap = "4.2.1"
 indicatif = "0.17.3"
 image = "0.19.0"
 build-time = "0.1.2"
+slint = "1.0.2"
+rfd = "0.11.4"
 fltk = "^1.4"
 fltk-theme = "0.7.0"
+
+[build-dependencies]
+slint-build = "1.0.2"
 
 [target.'cfg(windows)'.dependencies]
 fltk = { version = "^1.4", features = ["fltk-bundled"] }

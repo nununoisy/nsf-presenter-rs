@@ -1,0 +1,56 @@
+import { Button, ComboBox, LineEdit, VerticalBox } from "std-widgets.slint";
+import { ModuleMetadata, ModuleMetadataView } from "./module-metadata.slint";
+
+export component MainWindow inherits Window {
+    callback browse_for_module();
+    in property <string> module_path: "";
+    in property <ModuleMetadata> module_metadata: {
+        title: "<?>",
+        artist: "<?>",
+        copyright: "<?>",
+        driver: "<?>",
+        extended_metadata: false,
+        chips: [],
+        tracks: []
+    };
+    VerticalBox {
+        alignment: start;
+        spacing: 12px;
+        Text {
+            text: "NSFPresenter";
+            font-size: 32px;
+            horizontal-alignment: center;
+        }
+        HorizontalLayout {
+            alignment: stretch;
+            spacing:8px;
+            Text {
+                text: "Input module:";
+                vertical-alignment: center;
+            }
+            LineEdit {
+                enabled: false;
+                text: module_path;
+                placeholder-text: "No module selected";
+            }
+            Button {
+                text: "Browse...";
+                clicked => {
+                    root.browse_for_module();
+                }
+            }
+        }
+        ModuleMetadataView {
+            module_metadata: module_metadata;
+        }
+        ComboBox {
+            model: module_metadata.tracks;
+        }
+        HorizontalLayout {
+            alignment: center;
+            Button {
+                text: "Render!";
+            }
+        }
+    }
+}

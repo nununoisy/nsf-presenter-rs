@@ -50,7 +50,7 @@ impl Emulator {
         }
     }
 
-    fn driver_type(&self) -> NsfDriverType {
+    pub fn driver_type(&self) -> NsfDriverType {
         match &self.nsf {
             Some(nsf) => nsf.driver_type(),
             None => NsfDriverType::Unknown
@@ -324,11 +324,11 @@ impl Emulator {
     }
 
     pub fn nsfe_duration(&self) -> Option<usize> {
-        self.nsfe_metadata.as_ref()?.track_duration(1).clone()
+        self.nsfe_metadata.as_ref()?.track_duration(self.nsf_track_index as _).clone()
     }
 
     pub fn nsfe_fadeout(&self) -> Option<usize> {
-        self.nsfe_metadata.as_ref()?.track_fadeout(1).clone()
+        self.nsfe_metadata.as_ref()?.track_fadeout(self.nsf_track_index as _).clone()
     }
 
     pub fn loop_duration(&self) -> Option<(usize, usize)> {

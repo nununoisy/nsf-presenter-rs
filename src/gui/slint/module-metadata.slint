@@ -1,0 +1,48 @@
+export struct ModuleMetadata {
+    title: string,
+    artist: string,
+    copyright: string,
+
+    driver: string,
+
+    extended_metadata: bool,
+    chips: [string],
+    tracks: [string]
+}
+
+export component ModuleMetadataView {
+    in property <ModuleMetadata> module_metadata: {
+        title: "<?>",
+        artist: "<?>",
+        copyright: "<?>",
+        driver: "<?>",
+        extended_metadata: false,
+        chips: [],
+        tracks: []
+    };
+
+    VerticalLayout {
+        alignment: center;
+        spacing: 8px;
+        Text {
+            text: module_metadata.title;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: module_metadata.artist;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: module_metadata.copyright;
+            horizontal-alignment: center;
+        }
+        HorizontalLayout {
+            alignment: center;
+            spacing: 16px;
+
+            for chip in module_metadata.chips : Text {
+                text: chip;
+            }
+        }
+    }
+}
