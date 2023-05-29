@@ -172,7 +172,7 @@ impl Emulator {
         }
     }
 
-    fn get_song_position(&self) -> Option<SongPosition> {
+    pub fn get_song_position(&self) -> Option<SongPosition> {
         match self.driver_type() {
             // TODO ensure mappers don't move these around
             NsfDriverType::FTClassic => Some(self.get_famitracker_song_position(0x212)),

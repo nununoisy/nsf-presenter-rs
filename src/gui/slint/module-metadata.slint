@@ -6,6 +6,8 @@ export struct ModuleMetadata {
     driver: string,
 
     extended_metadata: bool,
+    loop_detection: bool,
+    extended_durations: [int],
     chips: [string],
     tracks: [string]
 }
@@ -17,13 +19,16 @@ export component ModuleMetadataView {
         copyright: "<?>",
         driver: "<?>",
         extended_metadata: false,
+        loop_detection: false,
+        extended_durations: [],
         chips: [],
         tracks: []
     };
 
     VerticalLayout {
         alignment: center;
-        spacing: 8px;
+        spacing: 4px;
+
         Text {
             text: module_metadata.title;
             horizontal-alignment: center;
@@ -40,8 +45,58 @@ export component ModuleMetadataView {
             alignment: center;
             spacing: 16px;
 
-            for chip in module_metadata.chips : Text {
-                text: chip;
+            Text {
+                text: "NSFe/NSF2 metadata";
+                color: module_metadata.extended_metadata
+                    ? green
+                    : red;
+            }
+            Text {
+                text: "Loop detection";
+                color: module_metadata.loop_detection
+                    ? green
+                    : red;
+            }
+            Text {
+                text: "Track titles";
+                color: module_metadata.tracks.length > 0
+                    ? green
+                    : red;
+            }
+            Text {
+                text: "NSFe/NSF2 duration";
+                color: module_metadata.extended_durations.length > 0
+                    ? green
+                    : red;
+            }
+        }
+        HorizontalLayout {
+            alignment: center;
+            spacing: 12px;
+
+            for chip in module_metadata.chips : Rectangle {
+                background: chip == "2A03" ? #dddddd :
+                            chip == "FDS" ? #0066ff :
+                            chip == "N163" ? #ff0000 :
+                            chip == "MMC5" ? #2eb82e :
+                            chip == "VRC6" ? #ffcc00 :
+                            chip == "VRC7" ? #ff9800 :
+                            chip == "S5B" ? #ff33cc :
+                                            transparent;
+
+                width: 36px;
+                height: 18px;
+                border-radius: 2px;
+
+                Text {
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    text: chip;
+
+                    color: chip == "2A03" ? black :
+                           chip == "VRC6" ? black :
+                                            white;
+                }
             }
         }
     }

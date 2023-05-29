@@ -11,7 +11,7 @@ pub const NES_NTSC_FRAMERATE: f64 = 1789772.7272727 / 29780.5;
 pub const NES_PAL_FRAMERATE: f64 = 1662607.0 / 33247.5;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
-struct SongPosition {
+pub struct SongPosition {
     pub frame: u8,
     pub row: u8
 }

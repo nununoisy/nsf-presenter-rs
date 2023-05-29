@@ -7,7 +7,7 @@ pub fn find_subsequence<T>(haystack: &[T], needle: &[T]) -> Option<usize>
     haystack.windows(needle.len()).position(|window| window == needle)
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum NsfDriverType {
     Unknown,
     FTClassic,

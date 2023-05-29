@@ -1,18 +1,42 @@
-import { Button, ComboBox, LineEdit, VerticalBox } from "std-widgets.slint";
+import { Button, ComboBox, CheckBox, SpinBox, LineEdit, VerticalBox } from "std-widgets.slint";
 import { ModuleMetadata, ModuleMetadataView } from "./module-metadata.slint";
 
 export component MainWindow inherits Window {
     callback browse_for_module();
+    callback update_formatted_duration();
+    callback start_render();
+
     in property <string> module_path: "";
+    in-out property <int> selected_track_index: -1;
+    in-out property <string> selected_track_text: "Select a track...";
+    in-out property <string> track_duration_num: "300";
+    in-out property <string> track_duration_type: "seconds";
+    in property <string> track_duration_formatted: "<unknown>";
+    in-out property <int> fadeout_duration: 180;
+    in-out property <int> output_width: 1920;
+    in-out property <int> output_height: 1080;
+    in-out property <bool> famicom_mode: false;
+    in-out property <bool> hq_filtering: false;
+    in-out property <bool> multiplexing: false;
     in property <ModuleMetadata> module_metadata: {
         title: "<?>",
         artist: "<?>",
         copyright: "<?>",
         driver: "<?>",
         extended_metadata: false,
+        loop_detection: false,
+        extended_durations: [],
         chips: [],
         tracks: []
     };
+
+    in property <bool> rendering: false;
+    in property <float> progress: 0.0;
+    in property <string> progress_bar_text: "Idle";
+    in property <[string]> progress_lines: [];
+
+    title: "NSFPresenter";
+
     VerticalBox {
         alignment: start;
         spacing: 12px;
@@ -23,7 +47,7 @@ export component MainWindow inherits Window {
         }
         HorizontalLayout {
             alignment: stretch;
-            spacing:8px;
+            spacing: 8px;
             Text {
                 text: "Input module:";
                 vertical-alignment: center;
@@ -35,6 +59,7 @@ export component MainWindow inherits Window {
             }
             Button {
                 text: "Browse...";
+                enabled: !rendering;
                 clicked => {
                     root.browse_for_module();
                 }
@@ -43,13 +68,190 @@ export component MainWindow inherits Window {
         ModuleMetadataView {
             module_metadata: module_metadata;
         }
-        ComboBox {
-            model: module_metadata.tracks;
+        HorizontalLayout {
+            alignment: stretch;
+            spacing: 8px;
+            Text {
+                text: "Track:";
+                vertical-alignment: center;
+            }
+            ComboBox {
+                model: module_metadata.tracks;
+                current-index <=> selected_track_index;
+                current-value <=> selected_track_text;
+                enabled: !rendering;
+            }
+        }
+        HorizontalLayout {
+            alignment: stretch;
+            spacing: 8px;
+            Text {
+                text: "Render duration:";
+                vertical-alignment: center;
+            }
+            if track_duration_type != "NSFe/NSF2 duration" : LineEdit {
+                text <=> track_duration_num;
+                enabled: !rendering;
+                edited => {
+                    root.update_formatted_duration();
+                }
+            }
+            ComboBox {
+                model: module_metadata.loop_detection
+                    ? (
+                        module_metadata.extended_durations.length > 0
+                            ? ["seconds", "frames", "loops", "NSFe/NSF2 duration"]
+                            : ["seconds", "frames", "loops"]
+                    )
+                    : (
+                        module_metadata.extended_durations.length > 0
+                            ? ["seconds", "frames", "NSFe/NSF2 duration"]
+                            : ["seconds", "frames"]
+                    );
+                current-value <=> track_duration_type;
+                enabled: !rendering;
+                selected => {
+                    root.update_formatted_duration();
+                }
+            }
+            Text {
+                text: track_duration_formatted;
+                vertical-alignment: center;
+                color: track_duration_formatted == "<error>"
+                    ? red
+                    : white;
+            }
+        }
+        HorizontalLayout {
+            alignment: stretch;
+            spacing: 8px;
+            Text {
+                text: "Fadeout frames:";
+                vertical-alignment: center;
+            }
+            SpinBox {
+                value <=> fadeout_duration;
+                minimum: 0;
+                maximum: 1200;
+                enabled: !rendering;
+            }
+        }
+        HorizontalLayout {
+            alignment: stretch;
+            spacing: 8px;
+            Text {
+                text: "Output video size:";
+                vertical-alignment: center;
+            }
+            SpinBox {
+                value <=> output_width;
+                minimum: 960;
+                maximum: 7680;
+                enabled: !rendering;
+            }
+            Text {
+                text: "×";
+                vertical-alignment: center;
+            }
+            SpinBox {
+                value <=> output_height;
+                minimum: 540;
+                maximum: 4320;
+                enabled: !rendering;
+            }
+            Button {
+                text: "1080p";
+                enabled: !rendering;
+                clicked => {
+                    output_width = 1920;
+                    output_height = 1080;
+                }
+            }
+            Button {
+                text: "4K";
+                enabled: !rendering;
+                clicked => {
+                    output_width = 3840;
+                    output_height = 2160;
+                }
+            }
+        }
+        HorizontalLayout {
+            alignment: start;
+            spacing: 8px;
+            CheckBox {
+                text: "Famicom mode";
+                checked <=> famicom_mode;
+                enabled: !rendering;
+            }
+            CheckBox {
+                text: "High-quality filtering";
+                checked <=> hq_filtering;
+                enabled: !rendering;
+            }
+            CheckBox {
+                text: "Emulate multiplexing";
+                checked <=> multiplexing;
+                enabled: !rendering;
+            }
         }
         HorizontalLayout {
             alignment: center;
             Button {
-                text: "Render!";
+                text: rendering
+                    ? "Rendering..."
+                    : "Render!";
+                enabled: !rendering;
+                clicked => {
+                    root.start_render();
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 8px;
+            min-height: 96px;
+
+            Rectangle {
+                preferred-height: 32px;
+
+                Rectangle {
+                    border-width: 1px;
+                    border-radius: 2px;
+                    border-color: #313131;  // Palette.neutralLighter
+                    background: #313131;  // Palette.neutralLighter
+                }
+                Rectangle {
+                    x: 0;
+                    y: 0;
+                    height: parent.height;
+                    width: progress * parent.width;
+
+                    border-width: 1px;
+                    border-radius: 2px;
+                    border-color: #0078d4;  // Palette.themePrimary
+                    background: #0078d4;  // Palette.themePrimary
+
+                    animate width {
+                        duration: 100ms;
+                        easing: ease-in-out;
+                    }
+                }
+                Text {
+                    x: 0;
+                    y: 0;
+                    height: parent.height;
+                    width: parent.width;
+
+                    text: progress_bar_text;
+                    vertical-alignment: center;
+                    horizontal-alignment: center;
+                }
+            }
+            for line in progress_lines : Text {
+                text: line;
+                horizontal-alignment: center;
             }
         }
     }

@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use crate::emulator;
 use crate::video_builder;
 use options::{RendererOptions, FRAME_RATE, StopCondition};
+use crate::emulator::SongPosition;
 
 pub struct Renderer {
     options: RendererOptions,
@@ -215,5 +216,13 @@ impl Renderer {
 
     pub fn emulator_progress(&self) -> Result<String, String> {
         self.emulator.progress()
+    }
+
+    pub fn song_position(&self) -> Option<SongPosition> {
+        self.emulator.get_song_position()
+    }
+
+    pub fn loop_count(&self) -> Option<usize> {
+        self.emulator.loop_count()
     }
 }
