@@ -2,7 +2,6 @@ mod video_builder;
 mod emulator;
 mod renderer;
 mod cli;
-mod gui_old;
 mod gui;
 
 use std::env;
