@@ -1098,16 +1098,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fltk-theme"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31a35af4e0ef3c362684219328cdb60459b3b916b9c9e57750b2c7ad6bd6b61f"
-dependencies = [
- "fltk",
- "lazy_static",
-]
-
-[[package]]
 name = "flume"
 version = "0.10.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2209,7 +2199,6 @@ dependencies = [
  "ffmpeg-next",
  "ffmpeg-sys-next",
  "fltk",
- "fltk-theme",
  "image 0.19.0",
  "indicatif",
  "native-dialog",

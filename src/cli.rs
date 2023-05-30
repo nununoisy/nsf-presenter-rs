@@ -54,11 +54,12 @@ fn get_renderer_options() -> RendererOptions {
         .arg(arg!(-X --"multiplexing" "Emulate multiplexing for audio mixing (e.g. w/ N163). More accurate, but can introduce sound artifacts.")
             .action(ArgAction::SetTrue))
         .arg(arg!(<nsf> "NSF to render")
-            .value_parser(value_parser!(PathBuf)))
+            .value_parser(value_parser!(PathBuf))
+            .required(true))
         .arg(arg!(<output> "Output video file")
-            .value_parser(value_parser!(PathBuf)))
+            .value_parser(value_parser!(PathBuf))
+            .required(true))
         .get_matches();
-
 
     let input_path = matches.get_one::<PathBuf>("nsf")
         .expect("Input path required")

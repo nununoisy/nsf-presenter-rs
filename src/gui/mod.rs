@@ -164,7 +164,10 @@ pub fn run() {
             match msg {
                 RenderThreadMessage::Error(e) => {
                     slint::invoke_from_event_loop(move || {
-                        display_error_dialog(&e)
+                        let error_message = format!("Render thread reported error: {}\
+                                                           \n\nThe program will now exit", e);
+                        display_error_dialog(&error_message);
+                        slint::quit_event_loop().unwrap();
                     }).unwrap();
                 }
                 RenderThreadMessage::RenderStarting => {
@@ -375,6 +378,8 @@ pub fn run() {
 
     main_window.run().unwrap();
 
-    rt_tx.send(None).unwrap();
-    rt_handle.join().unwrap();
+    if rt_tx.send(None).is_ok() {
+        // If the send failed, the channel is closed, so the thread is probably already dead.
+        rt_handle.join().unwrap();
+    }
 }

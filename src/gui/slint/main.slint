@@ -16,7 +16,7 @@ export component MainWindow inherits Window {
     in-out property <int> output_width: 1920;
     in-out property <int> output_height: 1080;
     in-out property <bool> famicom_mode: false;
-    in-out property <bool> hq_filtering: false;
+    in-out property <bool> hq_filtering: true;
     in-out property <bool> multiplexing: false;
     in property <ModuleMetadata> module_metadata: {
         title: "<?>",
@@ -80,6 +80,9 @@ export component MainWindow inherits Window {
                 current-index <=> selected_track_index;
                 current-value <=> selected_track_text;
                 enabled: !rendering;
+                selected => {
+                    root.update_formatted_duration();
+                }
             }
         }
         HorizontalLayout {

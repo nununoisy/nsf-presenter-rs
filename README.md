@@ -1,8 +1,9 @@
 # NSFPresenter
 
 NSFPresenter is a tool I wrote to generate visualizations of my
-[Dn-FamiTracker][1] covers, based on [RusticNES][2] and [FFmpeg][3].
-You can see it in action on [my YouTube channel][4]. I also wrote it
+[Dn-FamiTracker][dn-ft] covers, based on [RusticNES][rusticnes],
+[FFmpeg][ffmpeg], and [Slint][slint].
+You can see it in action on [my YouTube channel][yt]. I also wrote it
 to learn how to write Rust (so please forgive the code quality).
 
 ## Functionality
@@ -13,7 +14,8 @@ to be encoded as a video.
 
 It supports NSF modules and some features of NSF2 modules. The output
 format is not very customizable (since FFmpeg is not easy to set up),
-but it should work for most usecases.
+but it should work for most usecases. Support for other containers and
+codecs is planned.
 
 ## Features
 
@@ -26,7 +28,9 @@ but it should work for most usecases.
   - MPEG-4 container with fast-start (`moov` atom at beginning of file).
   - yuv420p H.264 video stream encoded with libx264, crf: 16.
   - Mono AAC LC audio stream encoded with FFmpeg's aac encoder, bitrate: 192k.
-- Video files are suitable for direct upload to YouTube or Discord (w/ Nitro).
+- Video files are suitable for direct upload to most websites:
+  - Outputs the recommended format for YouTube, Twitter, and Discord (w/ Nitro).
+  - Typical exports (1080p, up to 5 minutes) are usually below 100MB.
 - Video files have metadata based on NSF metadata (title, artist, copyright, track index).
 - Loop detection for FamiTracker NSF exports.
 - NSF2 features:
@@ -41,14 +45,71 @@ but it should work for most usecases.
              and run the executable, and you're all set.
 
 **Linux**: no binaries yet, but you can compile from source. You'll need to have `ffmpeg`
-           and `fltk` development packages installed, then clone the repo and run
+           and optionally `Qt6` development packages installed, then clone the repo and run
            `cargo build --release` to build.
 
 ## Usage
 
-TODO
+### GUI
 
-[1]: https://github.com/Dn-Programming-Core-Management/Dn-FamiTracker
-[2]: https://github.com/zeta0134/rusticnes-core
-[3]: https://github.com/FFmpeg/FFmpeg
-[4]: https://youtube.com/@nununoisy
+1. Click **Browse...** to select an input module.
+2. The module's metadata, expansion chips, and supported features will
+   be displayed.
+3. Select a track to be rendered from the dropdown.
+4. Select the duration of the output video. Available duration types are:
+    - Seconds: explicit duration in seconds.
+    - Frames: explicit duration in frames (1/60.1 of a second).
+    - Loops: if loop detection is supported, number of loops to be played.
+    - NSFe/NSF2 duration: if present, the track duration specified in the
+      `time` field.
+5. Select the duration of the fadeout in frames. This is not included in the
+   video duration above, rather it's added on to the end.
+6. Select the output video resolution. You can enter a custom resolution
+   or use the 1080p/4K presets.
+7. Select additional rendering options:
+    - Famicom mode: Emulates the Famicom's audio filter chain instead of the
+      NES', which results in a slightly noisier sound.
+    - High-quality filtering: Uses more accurate filter emulation for slightly
+      cleaner sound at the cost of increased render time.
+    - Emulate multiplexing: Accurately emulates multiplexing in mappers like
+      the N163. This results in a grittier sound, which may be desirable as
+      it is sometimes used for effects.
+8. Click **Render!** to select the output video filename and begin rendering
+   the visualization.
+9. Once the render is complete, you can select another track or even change
+   modules to render another tune.
+
+### CLI
+
+If NSFPresenter is started with command line arguments, it runs in CLI mode.
+This allows for the automation of rendering visualizations which in turn
+allows for batch rendering and even automated uploads.
+
+The most basic invocation is this:
+```
+nsf-presenter-rs path/to/music.nsf path/to/output.mp4
+```
+
+Additional options:
+- `-R [rate]`: set the sample rate of the audio (default: 44100)
+- `-T [track]`: select the NSF track index (default: 1)
+- `-s [condition]`: select the output duration (default: `time:300`):
+  - `time:[seconds]`
+  - `frames:[frames]`
+  - `loops:[loops]` (if supported)
+  - `time:nsfe` (if supported)
+- `-S [fadeout]`: select the fadeout duration in frames (default: 180).
+- `--ow [width]`: select the output resolution width (default: 1920)
+- `--oh [height]`: select the output resolution height (default: 1080)
+- `-J`: emulate Famicom filter chain
+- `-L`: use low-quality filtering
+- `-X`: emulate multiplexing for mappers like the N163
+- `-h`: Additional help + options
+  - Note: options not listed here are unstable and may cause crashes or
+    other errors.
+
+[dn-ft]: https://github.com/Dn-Programming-Core-Management/Dn-FamiTracker
+[rusticnes]: https://github.com/zeta0134/rusticnes-core
+[ffmpeg]: https://github.com/FFmpeg/FFmpeg
+[slint]: https://slint-ui.com
+[yt]: https://youtube.com/@nununoisy
