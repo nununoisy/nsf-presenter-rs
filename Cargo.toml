@@ -1,6 +1,6 @@
 [package]
 name = "nsf-presenter-rs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 build = "build.rs"
 
@@ -28,9 +28,6 @@ native-dialog = "0.6.3"
 
 [build-dependencies]
 slint-build = "1.0.2"
-
-[target.'cfg(windows)'.dependencies]
-fltk = { version = "^1.4", features = ["fltk-bundled"] }
 
 [patch."https://github.com/zeta0134/rusticnes-core"]
 rusticnes-core = { path = "external/rusticnes-core" }
