@@ -164,11 +164,16 @@ impl Emulator {
             }
         }
 
-        let row = self.runtime.nes.memory.iram_raw[ptr];
-        let frame = self.runtime.nes.memory.iram_raw[ptr+1];
-        let engine_flags = self.runtime.nes.memory.iram_raw[ptr+2];
-        // If the engine is loading the next frame, the row number will be wrong - correct it
-        if (engine_flags & 0x1) != 0 {
+        let player_flags = self.runtime.nes.memory.iram_raw[ptr];
+        let row = self.runtime.nes.memory.iram_raw[ptr+1];
+        let frame = self.runtime.nes.memory.iram_raw[ptr+2];
+        let engine_flags = self.runtime.nes.memory.iram_raw[ptr+3];
+
+        if (player_flags & 0x2) != 0 {
+            // If a Cxx was issued, report that the song has ended.
+            SongPosition::at_end()
+        } else if (engine_flags & 0x1) != 0 {
+            // If the engine is loading the next frame, the row number will be wrong - correct it
             SongPosition::new(frame, 0)
         } else {
             SongPosition::new(frame, row)
@@ -177,10 +182,9 @@ impl Emulator {
 
     pub fn get_song_position(&self) -> Option<SongPosition> {
         match self.driver_type() {
-            // TODO ensure mappers don't move these around
-            NsfDriverType::FTClassic => Some(self.get_famitracker_song_position(0x212)),
-            NsfDriverType::FT0CC => Some(self.get_famitracker_song_position(0x216)),
-            NsfDriverType::FTDn => Some(self.get_famitracker_song_position(0x216)),
+            NsfDriverType::FTClassic => Some(self.get_famitracker_song_position(0x211)),
+            NsfDriverType::FT0CC => Some(self.get_famitracker_song_position(0x215)),
+            NsfDriverType::FTDn => Some(self.get_famitracker_song_position(0x215)),
             NsfDriverType::Unknown => None
         }
     }

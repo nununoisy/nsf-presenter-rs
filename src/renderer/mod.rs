@@ -128,32 +128,42 @@ impl Renderer {
         match self.fadeout_timer {
             Some(0) => Some(0),
             Some(t) => Some(t - 1),
-            None => match self.options.stop_condition {
-                StopCondition::Loops(stop_loop_count) => {
-                    let loop_count = self.emulator.loop_count()
-                        .expect("Loop detection not supported for this NSF");
+            None => {
+                let song_ended = match self.emulator.get_song_position() {
+                    Some(position) => position.end,
+                    None => false
+                };
+                if song_ended {
+                    return Some(self.options.fadeout_length);
+                }
 
-                    if loop_count >= stop_loop_count {
-                        Some(self.options.fadeout_length)
-                    } else {
-                        None
-                    }
-                },
-                StopCondition::Duration(stop_duration) => {
-                    if self.cur_frame() >= stop_duration {
-                        Some(self.options.fadeout_length)
-                    } else {
-                        None
-                    }
-                },
-                StopCondition::NsfeLength => {
-                    let stop_duration = self.emulator.nsfe_duration()
-                        .expect("No NSFe/NSF2 duration specified for this track");
+                match self.options.stop_condition {
+                    StopCondition::Loops(stop_loop_count) => {
+                        let loop_count = self.emulator.loop_count()
+                            .expect("Loop detection not supported for this NSF");
 
-                    if self.cur_frame() >= stop_duration as u64 {
-                        Some(self.options.fadeout_length)
-                    } else {
-                        None
+                        if loop_count >= stop_loop_count {
+                            Some(self.options.fadeout_length)
+                        } else {
+                            None
+                        }
+                    },
+                    StopCondition::Duration(stop_duration) => {
+                        if self.cur_frame() >= stop_duration {
+                            Some(self.options.fadeout_length)
+                        } else {
+                            None
+                        }
+                    },
+                    StopCondition::NsfeLength => {
+                        let stop_duration = self.emulator.nsfe_duration()
+                            .expect("No NSFe/NSF2 duration specified for this track");
+
+                        if self.cur_frame() >= stop_duration as u64 {
+                            Some(self.options.fadeout_length)
+                        } else {
+                            None
+                        }
                     }
                 }
             }

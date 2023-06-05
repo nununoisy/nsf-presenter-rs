@@ -12,6 +12,7 @@ pub const NES_PAL_FRAMERATE: f64 = 1662607.0 / 33247.5;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Hash, Clone, Copy)]
 pub struct SongPosition {
+    pub end: bool,
     pub frame: u8,
     pub row: u8
 }
@@ -19,8 +20,17 @@ pub struct SongPosition {
 impl SongPosition {
     pub fn new(frame: u8, row: u8) -> Self {
         Self {
+            end: false,
             frame,
             row
+        }
+    }
+
+    pub fn at_end() -> Self {
+        Self {
+            end: true,
+            frame: 0,
+            row: 0
         }
     }
 }
