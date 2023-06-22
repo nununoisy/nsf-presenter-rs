@@ -1,3 +1,7 @@
+<p align="center">
+    <img src="nsf-presenter-icon-xl.png" />
+</p>
+
 # NSFPresenter
 
 NSFPresenter is a tool I wrote to generate visualizations of my
@@ -26,6 +30,7 @@ codecs is planned.
 - Outputs a video file:
   - Customizable resolution (default 1080p) at 60.10 FPS (the NES'/Famicom's true framerate).
   - MPEG-4 container with fast-start (`moov` atom at beginning of file).
+  - Matroska (MKV) containers are also supported.
   - yuv420p H.264 video stream encoded with libx264, crf: 16.
   - Mono AAC LC audio stream encoded with FFmpeg's aac encoder, bitrate: 192k.
 - Video files are suitable for direct upload to most websites:

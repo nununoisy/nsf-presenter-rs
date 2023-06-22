@@ -1,3 +1,6 @@
+#[cfg(windows)]
+extern crate winres;
+
 use slint_build;
 
 fn compile(path: &str) {
@@ -6,7 +9,19 @@ fn compile(path: &str) {
     slint_build::compile_with_config(path, config).unwrap();
 }
 
+#[cfg(windows)]
+fn apply_windows_resources() {
+    let mut res = winres::WindowsResource::new();
+    res.set_icon("nsf-presenter-icon.ico");
+    res.compile().unwrap();
+}
+
+#[cfg(not(windows))]
+fn apply_windows_resources() {
+}
+
 fn main() {
+    apply_windows_resources();
     compile("src/gui/slint/module-metadata.slint");
     compile("src/gui/slint/main.slint");
 }
