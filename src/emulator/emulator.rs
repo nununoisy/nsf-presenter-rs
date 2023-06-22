@@ -15,7 +15,6 @@ use rusticnes_ui_common::piano_roll_window::{PianoRollWindow, PollingType};
 use super::{SongPosition, DEFAULT_CONFIG};
 use super::nsf::{Nsf, NsfDriverType};
 use super::nsfeparser::NsfeMetadata;
-use super::background::{Background, ImageBackground, MTVideoBackground};
 
 pub struct Emulator {
     runtime: RusticNESRuntimeState,
@@ -24,7 +23,6 @@ pub struct Emulator {
     nsfe_metadata: Option<NsfeMetadata>,
     event_queue: VecDeque<Event>,
     piano_roll_window: PianoRollWindow,
-    background: Option<Box<dyn Background>>,
     sample_buffer: VecDeque<i16>,
     song_positions: HashMap<SongPosition, u32>,
     last_position: Option<SongPosition>,
@@ -41,7 +39,6 @@ impl Emulator {
             nsfe_metadata: None,
             event_queue: VecDeque::new(),
             piano_roll_window: PianoRollWindow::new(),
-            background: None,
             sample_buffer: VecDeque::new(),
             song_positions: HashMap::new(),
             last_position: None,
@@ -238,19 +235,7 @@ impl Emulator {
     pub fn get_piano_roll_frame(&mut self) -> Vec<u8> {
         self.dispatch(Event::RequestFrame);
 
-        let (w, h) = self.get_piano_roll_size();
-        if let Some(background) = &mut self.background {
-            let mut canvas = SimpleBuffer::new(w, h);
-
-            background.step(&mut canvas)
-                .expect("Draw background");
-
-            blit(&mut canvas, self.piano_roll_window.active_canvas(), 0, 0, Color::rgba(255, 255, 255, 255));
-
-            canvas.buffer
-        } else {
-            self.piano_roll_window.active_canvas().buffer.clone()
-        }
+        self.piano_roll_window.active_canvas().buffer.clone()
     }
 
     pub fn config_audio(&mut self, sample_rate: u64, buffer_size: usize, famicom: bool, high_quality: bool, multiplexing: bool) {
@@ -273,24 +258,6 @@ impl Emulator {
         self.piano_roll_window.polling_type = PollingType::ApuQuarterFrame;
     }
 
-    pub fn set_background(&mut self, path: &str, alpha: u8) {
-        let (w, h) = self.get_piano_roll_size();
-
-        let image = ImageBackground::open(path, w, h, alpha);
-        if image.is_ok() {
-            self.background = Some(Box::new(image.unwrap()));
-            return;
-        }
-
-        let video = MTVideoBackground::open(path, w, h, alpha);
-        if video.is_ok() {
-            self.background = Some(Box::new(video.unwrap()));
-            return;
-        }
-
-        panic!("Could not open background file");
-    }
-
     pub fn get_audio_samples(&mut self, sample_count: usize, volume_divisor: i16) -> Option<Vec<i16>> {
         if self.runtime.nes.apu.samples_queued() < 256 {
             return None;
@@ -311,6 +278,7 @@ impl Emulator {
         let samples: Vec<i16> = self.sample_buffer
             .drain(0..sample_count)
             .map(|s| s / volume_divisor)
+            .map(|s| s.saturating_add(s / 2))
             .collect();
         Some(samples)
     }
