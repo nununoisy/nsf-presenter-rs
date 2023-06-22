@@ -117,7 +117,9 @@ fn browse_for_module_dialog() -> Option<String> {
 
 fn browse_for_video_dialog() -> Option<String> {
     let file = FileDialog::new()
+        .add_filter("All supported formats", &["mp4", "mkv"])
         .add_filter("MPEG-4 Video", &["mp4"])
+        .add_filter("Matroska Video", &["mkv"])
         .show_save_single_file();
 
     match file {
@@ -315,10 +317,6 @@ pub fn run() {
                 Some(path) => path,
                 None => return
             };
-            if !output_path.ends_with(".mp4") {
-                display_error_dialog("Output file must have extension '.mp4'.");
-                return;
-            }
             options.borrow_mut().video_options.output_path = output_path;
 
             match &options.borrow().stop_condition {
