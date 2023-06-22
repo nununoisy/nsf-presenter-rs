@@ -278,7 +278,7 @@ impl Emulator {
         let samples: Vec<i16> = self.sample_buffer
             .drain(0..sample_count)
             .map(|s| s / volume_divisor)
-            .map(|s| s.saturating_add(s / 2))
+            .map(|s| s.saturating_add(s / 3))
             .collect();
         Some(samples)
     }
