@@ -6,7 +6,6 @@ use std::time::Instant;
 use std::time::Duration;
 use indicatif::{FormattedDuration, HumanBytes, ProgressBar, ProgressStyle};
 use crate::renderer::{Renderer, options::{RendererOptions, StopCondition}};
-use crate::video_builder::SampleFormat;
 
 fn get_renderer_options() -> RendererOptions {
     let matches = Command::new("NSFPresenter")
@@ -21,7 +20,6 @@ fn get_renderer_options() -> RendererOptions {
             .default_value("yuv420p"))
         .arg(arg!(-F --"sample-format" <FORMAT> "Set the output audio sample format")
             .required(false)
-            .value_parser(value_parser!(SampleFormat))
             .default_value("fltp"))
         .arg(arg!(-R --"sample-rate" <RATE> "Set the output audio sample rate")
             .required(false)
@@ -61,75 +59,62 @@ fn get_renderer_options() -> RendererOptions {
             .required(true))
         .get_matches();
 
-    let input_path = matches.get_one::<PathBuf>("nsf")
+    let mut options = RendererOptions::default();
+
+    options.input_path = matches.get_one::<PathBuf>("nsf")
         .expect("Input path required")
         .to_str()
         .unwrap()
         .to_string();
 
-    let output_path = matches.get_one::<PathBuf>("output")
+    options.video_options.output_path = matches.get_one::<PathBuf>("output")
         .expect("Output path required")
         .to_str()
         .unwrap()
         .to_string();
 
-    let v_codec = matches.get_one::<String>("video-codec")
+    options.video_options.video_codec = matches.get_one::<String>("video-codec")
         .cloned()
         .unwrap();
-    let a_codec = matches.get_one::<String>("audio-codec")
+    options.video_options.audio_codec = matches.get_one::<String>("audio-codec")
         .cloned()
         .unwrap();
-    let pix_fmt = matches.get_one::<String>("pixel-format")
+    options.video_options.pixel_format_out = matches.get_one::<String>("pixel-format")
         .cloned()
         .unwrap();
-    let sample_fmt = matches.get_one::<SampleFormat>("sample-format")
+    options.video_options.sample_format_out = matches.get_one::<String>("sample-format")
         .cloned()
         .unwrap();
+
     let sample_rate = matches.get_one::<i32>("sample-rate")
         .cloned()
         .unwrap();
-    let track_index = matches.get_one::<u8>("nsf-track")
+    options.video_options.sample_rate = sample_rate;
+    options.video_options.audio_time_base = (1, sample_rate).into();
+
+    options.track_index = matches.get_one::<u8>("nsf-track")
         .cloned()
         .unwrap();
-    let stop_condition = matches.get_one::<StopCondition>("stop-at")
+    options.stop_condition = matches.get_one::<StopCondition>("stop-at")
         .cloned()
         .unwrap();
-    let fadeout_length = matches.get_one::<u64>("stop-fadeout")
+    options.fadeout_length = matches.get_one::<u64>("stop-fadeout")
         .cloned()
         .unwrap();
+
     let ow = matches.get_one::<u32>("ow")
         .cloned()
         .unwrap();
     let oh = matches.get_one::<u32>("oh")
         .cloned()
         .unwrap();
-    let famicom = matches.get_flag("famicom");
-    let high_quality = !(matches.get_flag("lq-filters"));
-    let multiplexing = matches.get_flag("multiplexing");
+    options.video_options.resolution_out = (ow, oh);
 
-    // TODO
-    let v_codec_opts: Option<Vec<(String, String)>> = None;
-    let a_codec_opts: Option<Vec<(String, String)>> = None;
+    options.famicom = matches.get_flag("famicom");
+    options.high_quality = !(matches.get_flag("lq-filters"));
+    options.multiplexing = matches.get_flag("multiplexing");
 
-    RendererOptions {
-        input_path,
-        output_path,
-        v_codec,
-        a_codec,
-        pix_fmt,
-        sample_fmt,
-        sample_rate,
-        track_index,
-        stop_condition,
-        fadeout_length,
-        ow,
-        oh,
-        famicom,
-        high_quality,
-        multiplexing,
-        v_codec_opts,
-        a_codec_opts,
-    }
+    options
 }
 
 pub fn run() {

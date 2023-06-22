@@ -22,26 +22,28 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(options: RendererOptions) -> Result<Self, String> {
-        let mut video = video_builder::VideoBuilder::new(&options.output_path)?;
         let mut emulator = emulator::Emulator::new();
 
         emulator.init(None);
         emulator.open(&options.input_path)?;
         emulator.select_track(options.track_index);
+        emulator.config_audio(options.video_options.sample_rate as _, 0x10000, options.famicom, options.high_quality, options.multiplexing);
+
+        let mut video_options = options.video_options.clone();
+        video_options.resolution_in = emulator.get_piano_roll_size();
 
         match emulator.nsf_metadata() {
             Ok(Some((title, artist, copyright))) => {
-                video.set_metadata(title.as_str(), artist.as_str(), copyright.as_str(),
-                                   None, None, None, None);
+                video_options.metadata.insert("title".to_string(), title);
+                video_options.metadata.insert("artist".to_string(), artist);
+                video_options.metadata.insert("album".to_string(), copyright);
+                video_options.metadata.insert("track".to_string(), format!("{}/{}", options.track_index, emulator.track_count()));
+                video_options.metadata.insert("comment".to_string(), "Encoded with NSFPresenter".to_string());
             },
             _ => ()
-        };
+        }
 
-        emulator.config_audio(options.sample_rate as _, 0x10000, options.famicom, options.high_quality, options.multiplexing);
-        let (iw, ih) = emulator.get_piano_roll_size();
-
-        video.set_video_params(iw, ih, options.ow, options.oh, FRAME_RATE, &options.pix_fmt, &options.v_codec, options.v_codec_opts.clone())?;
-        video.set_audio_params(options.sample_rate, options.sample_fmt, &options.a_codec, options.a_codec_opts.clone())?;
+        let mut video = video_builder::VideoBuilder::new(video_options)?;
 
         Ok(Self {
             options: options.clone(),
@@ -69,13 +71,13 @@ impl Renderer {
     pub fn step(&mut self) -> Result<bool, String> {
         self.emulator.step();
 
-        self.video.push_video_data(self.emulator.get_piano_roll_frame())?;
+        self.video.push_video_data(&self.emulator.get_piano_roll_frame())?;
         let volume_divisor = match self.fadeout_timer {
             Some(t) => (self.options.fadeout_length as f64 / t as f64) as i16,
             None => 1i16
         };
         if let Some(audio_data) = self.emulator.get_audio_samples(1024, volume_divisor) {
-            self.video.push_audio_data(audio_data)?;
+            self.video.push_audio_data(video_builder::as_u8_slice(&audio_data))?;
         }
 
         self.video.step_encoding()?;
@@ -111,7 +113,7 @@ impl Renderer {
         }
 
         match self.options.stop_condition {
-            StopCondition::Duration(stop_duration) => Some((stop_duration + self.options.fadeout_length) as usize),
+            StopCondition::Frames(stop_duration) => Some((stop_duration + self.options.fadeout_length) as usize),
             StopCondition::Loops(stop_loop_count) => {
                 match self.emulator.loop_duration() {
                     Some((s, l)) => Some(self.options.fadeout_length as usize + s + l * stop_loop_count),
@@ -148,7 +150,7 @@ impl Renderer {
                             None
                         }
                     },
-                    StopCondition::Duration(stop_duration) => {
+                    StopCondition::Frames(stop_duration) => {
                         if self.cur_frame() >= stop_duration {
                             Some(self.options.fadeout_length)
                         } else {
@@ -198,11 +200,11 @@ impl Renderer {
     }
 
     pub fn encoded_duration(&self) -> Duration {
-        Duration::from_secs_f64(self.video.encoded_video_duration().unwrap())
+        self.video.encoded_video_duration()
     }
 
-    pub fn encoded_size(&self) -> i64 {
-        self.video.encoded_video_bytes()
+    pub fn encoded_size(&self) -> usize {
+        self.video.encoded_video_size()
     }
 
     pub fn expected_duration_frames(&self) -> Option<usize> {

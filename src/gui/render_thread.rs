@@ -10,7 +10,7 @@ use crate::renderer::options::RendererOptions;
 pub struct RenderProgressInfo {
     pub frame: u64,
     pub average_fps: u32,
-    pub encoded_size: i64,
+    pub encoded_size: usize,
     pub expected_duration_frames: Option<usize>,
     pub expected_duration: Option<Duration>,
     pub eta_duration: Option<Duration>,

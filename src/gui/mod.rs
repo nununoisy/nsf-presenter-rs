@@ -14,7 +14,6 @@ use indicatif::{FormattedDuration, HumanBytes};
 use crate::emulator::{Nsf, NsfDriverType};
 use crate::gui::render_thread::RenderThreadMessage;
 use crate::renderer::options::{FRAME_RATE, RendererOptions, StopCondition};
-use crate::video_builder::SampleFormat;
 
 slint::include_modules!();
 
@@ -138,25 +137,7 @@ fn display_error_dialog(text: &str) {
 
 pub fn run() {
     let main_window = MainWindow::new().unwrap();
-    let mut options = Rc::new(RefCell::new(RendererOptions {
-        input_path: "".to_string(),
-        output_path: "".to_string(),
-        v_codec: "libx264".to_string(),
-        a_codec: "aac".to_string(),
-        pix_fmt: "yuv420p".to_string(),
-        sample_fmt: SampleFormat::FLTP,
-        sample_rate: 44100,
-        track_index: 1,
-        stop_condition: StopCondition::from_str("time:300").unwrap(),
-        fadeout_length: 180,
-        ow: 1920,
-        oh: 1080,
-        famicom: false,
-        high_quality: false,
-        multiplexing: false,
-        v_codec_opts: None,
-        a_codec_opts: None,
-    }));
+    let mut options = Rc::new(RefCell::new(RendererOptions::default()));
 
     let (rt_handle, rt_tx) = {
         let main_window_weak = main_window.as_weak();
@@ -292,7 +273,7 @@ pub fn run() {
                 options.borrow_mut().stop_condition = stop_condition;
 
                 let label = match stop_condition {
-                    StopCondition::Duration(frames) => {
+                    StopCondition::Frames(frames) => {
                         let seconds = frames as f64 / FRAME_RATE as f64;
                         FormattedDuration(Duration::from_secs_f64(seconds)).to_string()
                     },
@@ -338,7 +319,7 @@ pub fn run() {
                 display_error_dialog("Output file must have extension '.mp4'.");
                 return;
             }
-            options.borrow_mut().output_path = output_path;
+            options.borrow_mut().video_options.output_path = output_path;
 
             match &options.borrow().stop_condition {
                 StopCondition::Loops(_) => {
@@ -366,8 +347,11 @@ pub fn run() {
             options.borrow_mut().track_index = track_index;
 
             options.borrow_mut().fadeout_length = main_window_weak.unwrap().get_fadeout_duration() as u64;
-            options.borrow_mut().ow = main_window_weak.unwrap().get_output_width() as u32;
-            options.borrow_mut().oh = main_window_weak.unwrap().get_output_height() as u32;
+
+            let ow = main_window_weak.unwrap().get_output_width() as u32;
+            let oh = main_window_weak.unwrap().get_output_height() as u32;
+            options.borrow_mut().video_options.resolution_out = (ow, oh);
+
             options.borrow_mut().famicom = main_window_weak.unwrap().get_famicom_mode();
             options.borrow_mut().high_quality = main_window_weak.unwrap().get_hq_filtering();
             options.borrow_mut().multiplexing = main_window_weak.unwrap().get_multiplexing();
