@@ -12,6 +12,7 @@ use rusticnes_ui_common::drawing::{blit, Color, SimpleBuffer};
 use rusticnes_ui_common::events::Event;
 use rusticnes_ui_common::panel::Panel;
 use rusticnes_ui_common::piano_roll_window::{PianoRollWindow, PollingType};
+use rusticnes_ui_common::settings::SettingsState;
 use super::{SongPosition, DEFAULT_CONFIG};
 use super::nsf::{Nsf, NsfDriverType};
 use super::nsfeparser::NsfeMetadata;
@@ -67,6 +68,11 @@ impl Emulator {
     }
 
     pub fn init(&mut self, config: Option<&str>) {
+        let default_settings = SettingsState::new();
+        let default_settings_events = default_settings.apply_settings();
+        self.event_queue.extend(default_settings_events);
+        self._dispatch();
+
         self.runtime.settings.load_str(config.unwrap_or(DEFAULT_CONFIG));
 
         let settings_events = self.runtime.settings.apply_settings();
