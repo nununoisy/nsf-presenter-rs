@@ -25,6 +25,8 @@ use mmc::fme7::YM2149F;
 use mmc::n163::Namco163Audio;
 use mmc::n163::n163_mixing_level;
 
+use mmc::vrc7::Vrc7Audio;
+
 use mmc::fds::FdsChannel;
 
 const PPUCTRL: u16 = 0x2000;
@@ -67,6 +69,10 @@ const BUTTON_UP: u8     = 1 << 3;
 const BUTTON_DOWN: u8   = 1 << 2;
 const BUTTON_LEFT: u8   = 1 << 1;
 const BUTTON_RIGHT: u8  = 1 << 0;
+
+pub fn amplitude_from_db(db: f32) -> f32 {
+    return f32::powf(10.0, db / 20.0);
+}
 
 fn wait_for_ppu_ready() -> Opcode {
     return List(vec![
@@ -323,6 +329,7 @@ enum TrackAdvanceMode {
 
 pub struct NsfMapper {
     prg: MemoryBlock,
+    prg_ram: Vec<u8>,
     chr: Vec<u8>,
     nsf_player: Vec<u8>,
     header: NsfHeader,
@@ -374,6 +381,10 @@ pub struct NsfMapper {
     n163_ram_auto_increment: bool,
     n163_expansion_audio_chip: Namco163Audio,
     n163_mix: f32,
+
+    vrc7_enabled: bool,
+    vrc7_audio: Vrc7Audio,
+    vrc7_audio_register: u8,
 
     fds_enabled: bool,
     fds_channel: FdsChannel
@@ -459,6 +470,10 @@ impl NsfMapper {
             n163_expansion_audio_chip: Namco163Audio::new(),
             n163_mix: n163_mixing_level(0),
 
+            vrc7_enabled: nsf.header.vrc7(),
+            vrc7_audio: Vrc7Audio::new(),
+            vrc7_audio_register: 0,
+
             fds_enabled: nsf.header.fds(),
             fds_channel: FdsChannel::new("FDS"),
 
@@ -466,6 +481,7 @@ impl NsfMapper {
 
             mirroring: Mirroring::FourScreen,
             vram: vec![0u8; 0x1000],
+            prg_ram: vec![0u8; 0x2000]
         };
 
         mapper.vrc6_write(0x9003, 0x00); // some NSF files expect VRC6 to already be enabled, so do that
@@ -1026,6 +1042,41 @@ impl NsfMapper {
         self.n163_expansion_audio_chip.clock();
     }
 
+    pub fn vrc7_output(&self) -> f32 {
+        if !self.vrc7_enabled {
+            return 0.0;
+        }
+        let combined_vrc7_audio = self.vrc7_audio.output() as f32 / 256.0 / 6.0;
+
+        let stock_vrc7_db = 6.23;
+        let desired_vrc7_db = 11.00;
+        let mixed_vrc7_audio = combined_vrc7_audio * amplitude_from_db(desired_vrc7_db - stock_vrc7_db);
+
+        return mixed_vrc7_audio;
+    }
+
+    pub fn clock_vrc7(&mut self) {
+        if !self.vrc7_enabled {
+            return;
+        }
+        self.vrc7_audio.clock();
+    }
+
+    pub fn vrc7_write(&mut self, address: u16, data: u8) {
+        if !self.vrc7_enabled {
+            return;
+        }
+        match address {
+            0x9010  => {
+                self.vrc7_audio_register = data
+            },
+            0x9030          => {
+                self.vrc7_audio.write(self.vrc7_audio_register, data);
+            },
+            _ => {}
+        }
+    }
+
     fn fds_write(&mut self, address: u16, data: u8) {
         if !self.fds_enabled {
             return;
@@ -1142,6 +1193,7 @@ impl Mapper for NsfMapper {
         self.clock_mmc5();
         self.clock_s5b();
         self.clock_n163();
+        self.clock_vrc7();
         self.clock_fds();
         self.current_cycles += 1;
 
@@ -1158,6 +1210,7 @@ impl Mapper for NsfMapper {
             self.mmc5_output() +
             self.s5b_output() +
             self.n163_output() +
+            self.vrc7_output() +
             self.fds_output() +
             nes_sample;
         return mixed_sample * self.fade_weight();
@@ -1193,6 +1246,16 @@ impl Mapper for NsfMapper {
             n163_channels.push(&self.n163_expansion_audio_chip.channel8);
             n163_channels.truncate(enabled_channels);
             channels.append(&mut n163_channels);
+        }
+        if self.vrc7_enabled {
+            let mut vrc7_channels: Vec<& dyn AudioChannelState> = Vec::new();
+            vrc7_channels.push(&self.vrc7_audio.channel1);
+            vrc7_channels.push(&self.vrc7_audio.channel2);
+            vrc7_channels.push(&self.vrc7_audio.channel3);
+            vrc7_channels.push(&self.vrc7_audio.channel4);
+            vrc7_channels.push(&self.vrc7_audio.channel5);
+            vrc7_channels.push(&self.vrc7_audio.channel6);
+            channels.append(&mut vrc7_channels);
         }
         if self.fds_enabled {
             channels.push(&self.fds_channel);
@@ -1231,6 +1294,16 @@ impl Mapper for NsfMapper {
             n163_channels.truncate(enabled_channels);
             channels.append(&mut n163_channels);
         }
+        if self.vrc7_enabled {
+            let mut vrc7_channels: Vec<&mut dyn AudioChannelState> = Vec::new();
+            vrc7_channels.push(&mut self.vrc7_audio.channel1);
+            vrc7_channels.push(&mut self.vrc7_audio.channel2);
+            vrc7_channels.push(&mut self.vrc7_audio.channel3);
+            vrc7_channels.push(&mut self.vrc7_audio.channel4);
+            vrc7_channels.push(&mut self.vrc7_audio.channel5);
+            vrc7_channels.push(&mut self.vrc7_audio.channel6);
+            channels.append(&mut vrc7_channels);
+        }
         if self.fds_enabled {
             channels.push(&mut self.fds_channel);
         }
@@ -1253,6 +1326,9 @@ impl Mapper for NsfMapper {
         }
         if self.n163_enabled {
             self.n163_expansion_audio_chip.record_output();
+        }
+        if self.vrc7_enabled {
+            self.vrc7_audio.record_output();
         }
         if self.fds_enabled {
             self.fds_channel.record_current_output();
@@ -1288,6 +1364,7 @@ impl Mapper for NsfMapper {
             PLAYER_PLAYBACK_COUNTER => Some(self.playback_counter),
             PLAYER_TRACK_SELECT => Some(self.current_track - 1),
             PLAYER_ORIGIN ..= PLAYER_END => Some(self.nsf_player[(address - PLAYER_ORIGIN) as usize]),
+            0x6000 ..= 0x7FFF => Some(self.prg_ram[(address - 0x6000) as usize]),
             0x8000 ..= 0x8FFF => self.prg.banked_read(0x1000, self.prg_rom_banks[0], (address - 0x8000) as usize),
             0x9000 ..= 0x9FFF => self.prg.banked_read(0x1000, self.prg_rom_banks[1], (address - 0x9000) as usize),
             0xA000 ..= 0xAFFF => self.prg.banked_read(0x1000, self.prg_rom_banks[2], (address - 0xA000) as usize),
@@ -1323,6 +1400,7 @@ impl Mapper for NsfMapper {
             0x5FFD => {self.prg_rom_banks[5] = data as usize},
             0x5FFE => {self.prg_rom_banks[6] = data as usize},
             0x5FFF => {self.prg_rom_banks[7] = data as usize},
+            0x6000 ..= 0x7FFF => {self.prg_ram[(address - 0x6000) as usize] = data},
             _ => {}
         }
         if self.vrc6_enabled {
@@ -1336,6 +1414,9 @@ impl Mapper for NsfMapper {
         }
         if self.n163_enabled {
             self.n163_write(address, data);
+        }
+        if self.vrc7_enabled {
+            self.vrc7_write(address, data);
         }
         if self.fds_enabled {
             self.fds_write(address, data);

@@ -746,7 +746,7 @@ impl PpuState {
         match self.current_scanline {
             0 => {
                 if self.current_scanline_cycle == 1 {
-                    self.frame_starting_cycle = self.overall_cycle % 12
+                    self.frame_starting_cycle = self.overall_cycle % 3
                 }
                 self.render_scanline(mapper);
             },

@@ -90,6 +90,8 @@ pub struct CpuState {
   pub oam_dma_active: bool,
   pub oam_dma_cycle: u16,
   pub oam_dma_address: u16,
+
+  pub old_nmi_requested: bool,
 }
 
 impl CpuState {
@@ -108,6 +110,8 @@ impl CpuState {
       oam_dma_cycle: 0,
       oam_dma_address: 0,
       upcoming_write: false,
+
+      old_nmi_requested: false
     }
   }
 }
@@ -127,6 +131,8 @@ pub fn irq_signal(nes: &NesState) -> bool {
 }
 
 pub fn poll_for_interrupts(nes: &mut NesState) {
+  nes.cpu.old_nmi_requested = nes.cpu.nmi_requested;
+
   let current_nmi = nmi_signal(&nes);
   let last_nmi = nes.registers.flags.last_nmi;
   nes.registers.flags.last_nmi = current_nmi;
@@ -137,7 +143,7 @@ pub fn poll_for_interrupts(nes: &mut NesState) {
 }
 
 pub fn interrupt_requested(nes: &NesState) -> bool {
-  return nes.cpu.nmi_requested || nes.cpu.irq_requested;
+  return nes.cpu.old_nmi_requested || nes.cpu.irq_requested;
 }
 
 pub fn halt_cpu(nes: &mut NesState) {

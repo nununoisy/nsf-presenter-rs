@@ -389,6 +389,7 @@ pub fn service_interrupt(nes: &mut NesState) {
       // an IRQ
       if nes.cpu.nmi_requested {
         nes.cpu.nmi_requested = false;
+        nes.cpu.old_nmi_requested = false;
         nes.cpu.temp_address = 0xFFFA;
       } else {
         nes.cpu.temp_address = 0xFFFE;
