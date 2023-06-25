@@ -327,6 +327,8 @@ impl FdsChannel {
             self.vol_envelope.clock(self.master_envelope_speed);
         }
 
+        let old_wave_idx = (self.wave_table.phase >> 16) & 0x3F;
+
         self.mod_table.clock();
         self.wave_table.clock(self.mod_table.pos, self.mod_envelope.out);
 
@@ -342,6 +344,7 @@ impl FdsChannel {
             let volume = (wave * 2 / (self.wave_table.master_volume as i32 + 2)) as f32;
             self.output_filter.consume(volume, 1.0 / 1789773.0);
             self.current_volume = self.output_filter.output();
+            self.last_edge = (old_wave_idx != 0) && (wave_idx == 0);
         }
     }
 }
