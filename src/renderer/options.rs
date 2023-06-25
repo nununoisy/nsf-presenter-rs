@@ -40,7 +40,7 @@ impl FromStr for StopCondition {
             "time" => match parts[1] {
                 "nsfe" => Ok(StopCondition::NsfeLength),
                 _ => {
-                    let time = u64::from_str(parts[1]).map_err( | e | e.to_string()) ?;
+                    let time = u64::from_str(parts[1]).map_err( | e | e.to_string())?;
                     Ok(StopCondition::Frames(time * FRAME_RATE as u64))
                 }
             },

@@ -159,9 +159,10 @@ impl Emulator {
 
     fn get_famitracker_song_position(&self, mut ptr: usize) -> SongPosition {
         if let Some(nsf) = &self.nsf {
-            if nsf.vrc7() {
-                ptr += 1;
-            }
+            // TODO: this is sometimes needed but other times not? Needs further investigation
+            // if nsf.vrc7() {
+            //     ptr += 1;
+            // }
             if nsf.fds() {
                 ptr += 2;
             }
