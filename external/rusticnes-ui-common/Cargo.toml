@@ -8,4 +8,4 @@ csscolorparser = "0.6.1"
 image = "0.19"
 toml = "0.5"
 regex = "1.6"
-rusticnes-core = { git = "https://github.com/zeta0134/rusticnes-core", rev = "b81ec27e481886278d29052203050304011f53cc" }
+rusticnes-core = { git = "https://github.com/zeta0134/rusticnes-core", rev = "cbd7146ad66dd8e95a35d46828ad7878f75de638" }
