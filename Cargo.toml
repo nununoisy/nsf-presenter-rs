@@ -23,11 +23,11 @@ clap = "4.2.1"
 indicatif = "0.17.3"
 image = "0.19.0"
 build-time = "0.1.2"
-slint = "1.0.2"
+slint = "1.1.0"
 native-dialog = "0.6.3"
 
 [build-dependencies]
-slint-build = "1.0.2"
+slint-build = "1.1.0"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"
