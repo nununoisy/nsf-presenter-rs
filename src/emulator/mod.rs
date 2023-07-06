@@ -56,4 +56,7 @@ waveform_height = 48
 oscilloscope_glow_thickness = 2.0
 oscilloscope_line_thickness = 0.75
 draw_piano_strings = false
+
+[piano_roll.settings.APU."Final Mix"]
+hidden = true
 "###;
