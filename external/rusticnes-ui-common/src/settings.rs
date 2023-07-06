@@ -77,20 +77,20 @@ gradient_high = "hsv(40, 40%, 90%)"
 gradient_low = "hsv(40, 95%, 80%)"
 
 [piano_roll.settings.N163."NAMCO 5"]
-gradient_high = "hsv(35, 22%, 80%)"
-gradient_low = "hsv(5, 80%, 60%)"
+gradient_high = "hsv(0, 0%, 90%)"
+gradient_low = "hsv(0, 10%, 80%)"
 
 [piano_roll.settings.N163."NAMCO 6"]
-gradient_high = "hsv(35, 22%, 80%)"
-gradient_low = "hsv(5, 80%, 60%)"
+gradient_high = "hsv(180, 80%, 60%)"
+gradient_low = "hsv(180, 100%, 50%)"
 
 [piano_roll.settings.N163."NAMCO 7"]
-gradient_high = "hsv(35, 22%, 80%)"
-gradient_low = "hsv(5, 80%, 60%)"
+gradient_high = "hsv(238, 60%, 90%)"
+gradient_low = "hsv(238, 95%, 80%)"
 
 [piano_roll.settings.N163."NAMCO 8"]
-gradient_high = "hsv(35, 22%, 80%)"
-gradient_low = "hsv(5, 80%, 60%)"
+gradient_high = "hsv(278, 40%, 90%)"
+gradient_low = "hsv(278, 95%, 80%)"
 [piano_roll.settings.VRC6."Pulse 1"]
 duty0 = "hsv(330, 22%, 94%)"
 duty1 = "hsv(330, 32%, 86%)"
