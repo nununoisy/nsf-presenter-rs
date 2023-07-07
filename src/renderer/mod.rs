@@ -132,16 +132,16 @@ impl Renderer {
             Some(0) => Some(0),
             Some(t) => Some(t - 1),
             None => {
-                let song_ended = match self.emulator.get_song_position() {
-                    Some(position) => position.end,
-                    None => false
-                };
-                if song_ended {
-                    return Some(self.options.fadeout_length);
-                }
-
                 match self.options.stop_condition {
                     StopCondition::Loops(stop_loop_count) => {
+                        let song_ended = match self.emulator.get_song_position() {
+                            Some(position) => position.end,
+                            None => false
+                        };
+                        if song_ended {
+                            return Some(self.options.fadeout_length);
+                        }
+
                         let loop_count = self.emulator.loop_count()
                             .expect("Loop detection not supported for this NSF");
 
