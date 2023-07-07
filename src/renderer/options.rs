@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::ffi::OsStr;
+use rusticnes_ui_common::piano_roll_window::ChannelSettings;
 use crate::video_builder::video_options::VideoOptions;
 
 pub const FRAME_RATE: i32 = 60;
@@ -71,6 +73,8 @@ pub struct RendererOptions {
     pub famicom: bool,
     pub high_quality: bool,
     pub multiplexing: bool,
+
+    pub channel_settings: HashMap<(String, String), ChannelSettings>
 }
 
 impl Default for RendererOptions {
@@ -100,7 +104,8 @@ impl Default for RendererOptions {
             fadeout_length: 180,
             famicom: false,
             high_quality: true,
-            multiplexing: false
+            multiplexing: false,
+            channel_settings: HashMap::new()
         }
     }
 }

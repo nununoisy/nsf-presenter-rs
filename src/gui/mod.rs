@@ -1,17 +1,20 @@
 mod render_thread;
 
 use slint;
-use slint::Model;
+use slint::{Color, Model};
 use native_dialog::{FileDialog, MessageDialog, MessageType};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::{fs, thread};
+use std::collections::HashMap;
 use std::path;
 use std::str::FromStr;
 use std::sync::mpsc;
 use std::time::Duration;
 use indicatif::{FormattedDuration, HumanBytes};
-use crate::emulator::{Nsf, NsfDriverType};
+use rusticnes_ui_common::piano_roll_window::ChannelSettings;
+use rusticnes_ui_common::drawing;
+use crate::emulator::{Emulator, Nsf, NsfDriverType};
 use crate::gui::render_thread::RenderThreadMessage;
 use crate::renderer::options::{FRAME_RATE, RendererOptions, StopCondition};
 
@@ -37,6 +40,13 @@ where
         .map(|n| n.into())
         .collect();
     slint::ModelRc::new(slint::VecModel::from(int_vec))
+}
+
+fn slint_color_component_arr<I: IntoIterator<Item = drawing::Color>>(a: I) -> slint::ModelRc<slint::ModelRc<i32>> {
+    let color_vecs: Vec<slint::ModelRc<i32>> = a.into_iter()
+        .map(|c| slint::ModelRc::new(slint::VecModel::from(vec![c.r() as i32, c.g() as i32, c.b() as i32])))
+        .collect();
+    slint::ModelRc::new(slint::VecModel::from(color_vecs))
 }
 
 fn get_module_metadata(path: &str) -> ModuleMetadata {
@@ -104,6 +114,13 @@ fn get_module_metadata(path: &str) -> ModuleMetadata {
     result
 }
 
+fn get_default_channel_settings() -> HashMap<(String, String), ChannelSettings> {
+    let mut emulator = Emulator::new();
+    emulator.init();
+
+    emulator.channel_settings()
+}
+
 fn browse_for_module_dialog() -> Option<String> {
     let file = FileDialog::new()
         .add_filter("Nintendo Sound Files", &["nsf"])
@@ -139,6 +156,64 @@ fn display_error_dialog(text: &str) {
 
 pub fn run() {
     let main_window = MainWindow::new().unwrap();
+
+    main_window.global::<ColorUtils>().on_hex_to_color(|hex| {
+        let rgb = u32::from_str_radix(hex.to_string().trim_start_matches("#"), 16).unwrap_or(0);
+
+        Color::from_argb_encoded(0xFF000000 | rgb)
+    });
+
+    main_window.global::<ColorUtils>().on_color_to_hex(|color| {
+        format!("#{:02x}{:02x}{:02x}", color.red(), color.green(), color.blue()).into()
+    });
+
+    main_window.global::<ColorUtils>().on_color_components(|color| {
+        slint_int_arr([color.red() as i32, color.green() as i32, color.blue() as i32])
+    });
+
+    let channel_settings = get_default_channel_settings();
+    for ((chip, channel), settings) in channel_settings.iter() {
+        let colors: Vec<_> = settings.colors
+            .iter()
+            .map(|c| format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b()))
+            .collect();
+        println!("{} {} - {} {}", chip, channel, settings.hidden, colors.join(", "));
+
+        let configs_model = match chip.as_str() {
+            "2A03" => main_window.get_config_2a03(),
+            "MMC5" => main_window.get_config_mmc5(),
+            "N163" => main_window.get_config_n163(),
+            "VRC6" => main_window.get_config_vrc6(),
+            "VRC7" => main_window.get_config_vrc7(),
+            "YM2149F" => main_window.get_config_s5b(),
+            "FDS" => main_window.get_config_fds(),
+            "APU" => main_window.get_config_apu(),
+            _ => continue
+        };
+        let mut configs: Vec<ChannelConfig> = configs_model
+            .as_any()
+            .downcast_ref::<slint::VecModel<ChannelConfig>>()
+            .unwrap()
+            .iter()
+            .collect();
+        if let Some(config) = configs.iter_mut().find(|cfg| channel.clone() == cfg.name.to_string()) {
+            config.hidden = settings.hidden;
+            config.colors = slint_color_component_arr(settings.colors.clone());
+        }
+        let new_config_model = slint::ModelRc::new(slint::VecModel::from(configs));
+        match chip.as_str() {
+            "2A03" => main_window.set_config_2a03(new_config_model),
+            "MMC5" => main_window.set_config_mmc5(new_config_model),
+            "N163" => main_window.set_config_n163(new_config_model),
+            "VRC6" => main_window.set_config_vrc6(new_config_model),
+            "VRC7" => main_window.set_config_vrc7(new_config_model),
+            "YM2149F" => main_window.set_config_s5b(new_config_model),
+            "FDS" => main_window.set_config_fds(new_config_model),
+            "APU" => main_window.set_config_apu(new_config_model),
+            _ => continue
+        }
+    }
+
     let mut options = Rc::new(RefCell::new(RendererOptions::default()));
 
     let (rt_handle, rt_tx) = {
@@ -353,6 +428,49 @@ pub fn run() {
             options.borrow_mut().famicom = main_window_weak.unwrap().get_famicom_mode();
             options.borrow_mut().high_quality = main_window_weak.unwrap().get_hq_filtering();
             options.borrow_mut().multiplexing = main_window_weak.unwrap().get_multiplexing();
+
+            let mut channel_settings = get_default_channel_settings();
+            for ((chip, channel), settings) in channel_settings.iter_mut() {
+                let configs_model = match chip.as_str() {
+                    "2A03" => main_window_weak.unwrap().get_config_2a03(),
+                    "MMC5" => main_window_weak.unwrap().get_config_mmc5(),
+                    "N163" => main_window_weak.unwrap().get_config_n163(),
+                    "VRC6" => main_window_weak.unwrap().get_config_vrc6(),
+                    "VRC7" => main_window_weak.unwrap().get_config_vrc7(),
+                    "YM2149F" => main_window_weak.unwrap().get_config_s5b(),
+                    "FDS" => main_window_weak.unwrap().get_config_fds(),
+                    "APU" => main_window_weak.unwrap().get_config_apu(),
+                    _ => continue
+                };
+                let config = configs_model
+                    .as_any()
+                    .downcast_ref::<slint::VecModel<ChannelConfig>>()
+                    .unwrap()
+                    .iter()
+                    .find(|cfg| cfg.name.to_string() == channel.clone())
+                    .unwrap();
+
+                settings.hidden = config.hidden;
+                settings.colors = config.colors
+                    .as_any()
+                    .downcast_ref::<slint::VecModel<slint::ModelRc<i32>>>()
+                    .unwrap()
+                    .iter()
+                    .map(|color_model| {
+                        let mut component_iter = color_model
+                            .as_any()
+                            .downcast_ref::<slint::VecModel<i32>>()
+                            .unwrap()
+                            .iter();
+                        let r = component_iter.next().unwrap() as u8;
+                        let g = component_iter.next().unwrap() as u8;
+                        let b = component_iter.next().unwrap() as u8;
+
+                        drawing::Color::rgb(r, g, b)
+                    })
+                    .collect();
+            }
+            options.borrow_mut().channel_settings = channel_settings;
 
             rt_tx.send(Some(options.borrow().clone())).unwrap();
         });

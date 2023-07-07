@@ -1,5 +1,8 @@
 import { Button, ComboBox, CheckBox, SpinBox, LineEdit, VerticalBox } from "std-widgets.slint";
 import { ModuleMetadata, ModuleMetadataView } from "./module-metadata.slint";
+import { ChannelConfigView, ChannelConfig } from "./channel-config.slint";
+import { ColorUtils } from "./color-picker.slint";
+export { ColorUtils }
 
 export component MainWindow inherits Window {
     callback browse_for_module();
@@ -29,6 +32,53 @@ export component MainWindow inherits Window {
         chips: [],
         tracks: []
     };
+
+    in-out property<[ChannelConfig]> config-2a03: [
+        { name: "Pulse 1", hidden: false, colors: [] },
+        { name: "Pulse 2", hidden: false, colors: [] },
+        { name: "Triangle", hidden: false, colors: [] },
+        { name: "Noise", hidden: false, colors: [] },
+        { name: "DMC", hidden: false, colors: [] }
+    ];
+    in-out property<[ChannelConfig]> config-mmc5: [
+        { name: "Pulse 1", hidden: false, colors: [] },
+        { name: "Pulse 2", hidden: false, colors: [] },
+        { name: "PCM", hidden: false, colors: [] }
+    ];
+    in-out property<[ChannelConfig]> config-n163: [
+        { name: "NAMCO 1", hidden: false, colors: [] },
+        { name: "NAMCO 2", hidden: false, colors: [] },
+        { name: "NAMCO 3", hidden: false, colors: [] },
+        { name: "NAMCO 4", hidden: false, colors: [] },
+        { name: "NAMCO 5", hidden: false, colors: [] },
+        { name: "NAMCO 6", hidden: false, colors: [] },
+        { name: "NAMCO 7", hidden: false, colors: [] },
+        { name: "NAMCO 8", hidden: false, colors: [] }
+    ];
+    in-out property<[ChannelConfig]> config-vrc6: [
+        { name: "Pulse 1", hidden: false, colors: [] },
+        { name: "Pulse 2", hidden: false, colors: [] },
+        { name: "Sawtooth", hidden: false, colors: [] }
+    ];
+    in-out property<[ChannelConfig]> config-vrc7: [
+        { name: "FM 1", hidden: false, colors: [] },
+        { name: "FM 2", hidden: false, colors: [] },
+        { name: "FM 3", hidden: false, colors: [] },
+        { name: "FM 4", hidden: false, colors: [] },
+        { name: "FM 5", hidden: false, colors: [] },
+        { name: "FM 6", hidden: false, colors: [] }
+    ];
+    in-out property<[ChannelConfig]> config-s5b: [
+        { name: "A", hidden: false, colors: [] },
+        { name: "B", hidden: false, colors: [] },
+        { name: "C", hidden: false, colors: [] }
+    ];
+    in-out property<[ChannelConfig]> config-fds: [
+        { name: "FDS", hidden: false, colors: [] }
+    ];
+    in-out property<[ChannelConfig]> config-apu: [
+        { name: "Final Mix", hidden: false, colors: [] }
+    ];
 
     in property <bool> rendering: false;
     in property <float> progress: 0.0;
@@ -85,6 +135,18 @@ export component MainWindow inherits Window {
                     root.update_formatted_duration();
                 }
             }
+        }
+        ChannelConfigView {
+            active-chips: module_metadata.chips;
+            enabled: !rendering;
+            config-2a03 <=> root.config-2a03;
+            config-mmc5 <=> root.config-mmc5;
+            config-n163 <=> root.config-n163;
+            config-vrc6 <=> root.config-vrc6;
+            config-vrc7 <=> root.config-vrc7;
+            config-s5b <=> root.config-s5b;
+            config-fds <=> root.config-fds;
+            config-apu <=> root.config-apu;
         }
         HorizontalLayout {
             alignment: stretch;

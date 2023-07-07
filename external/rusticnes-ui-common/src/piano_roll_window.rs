@@ -70,6 +70,7 @@ impl ChannelSlice {
     }
 }
 
+#[derive(Clone)]
 pub struct ChannelSettings {
     pub colors: Vec<Color>,
     pub hidden: bool

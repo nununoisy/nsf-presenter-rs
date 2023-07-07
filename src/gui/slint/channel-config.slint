@@ -1,0 +1,198 @@
+import { VerticalBox, ComboBox, Switch, StandardButton } from "std-widgets.slint";
+import { ColorPicker } from "./color-picker.slint";
+
+export struct ChannelConfig {
+    name: string,
+    hidden: bool,
+    colors: [[int]]
+}
+
+component ChannelConfigRow {
+    in-out property<ChannelConfig> config;
+    in property<bool> enabled: true;
+
+    callback updated(ChannelConfig);
+
+    HorizontalLayout {
+        alignment: stretch;
+
+        Switch {
+            text: root.config.name;
+            checked: !root.config.hidden;
+            enabled: root.enabled;
+            width: 150px;
+
+            toggled => {
+                root.config.hidden = !root.config.hidden;
+                root.updated(root.config);
+            }
+        }
+
+        for color[i] in config.colors: Rectangle {
+            Rectangle {
+                background: root.config.hidden ? root.grayscale(color) : Colors.rgb(color[0], color[1], color[2]);
+                x: 2px;
+                y: 2px;
+                height: parent.height - 4px;
+                width: parent.width - 4px;
+                border-radius: 4px;
+            }
+
+            i-popup := PopupWindow {
+                width: 350px;
+                close-on-click: false;
+
+                Rectangle {
+                    height: 100%;
+                    width: 100%;
+                    background: #1c1c1c;
+                    border-radius: 2px;
+                }
+                VerticalBox {
+                    alignment: start;
+                    ColorPicker {
+                        width: 350px;
+                        r: color[0];
+                        g: color[1];
+                        b: color[2];
+                        changed(r, g, b) => {
+                            root.config.colors[i] = [r, g, b];
+                        }
+                    }
+                    StandardButton {
+                        kind: ok;
+                        clicked => {
+                            i-popup.close();
+                        }
+                    }
+                }
+            }
+            i-touch := TouchArea {
+                mouse-cursor: root.config.hidden ? default : pointer;
+                clicked => {
+                    if (!root.config.hidden && root.enabled) {
+                        i-popup.show();
+                    }
+                }
+            }
+        }
+    }
+
+    function luma-gray(c: [int]) -> int {
+        return Math.round(0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]);
+    }
+
+    function grayscale(c: [int]) -> color {
+        return Colors.rgb(luma-gray(c), luma-gray(c), luma-gray(c));
+    }
+}
+
+export component ChannelConfigView {
+    in-out property<[ChannelConfig]> config-2a03;
+    in-out property<[ChannelConfig]> config-mmc5;
+    in-out property<[ChannelConfig]> config-n163;
+    in-out property<[ChannelConfig]> config-vrc6;
+    in-out property<[ChannelConfig]> config-vrc7;
+    in-out property<[ChannelConfig]> config-s5b;
+    in-out property<[ChannelConfig]> config-fds;
+    in-out property<[ChannelConfig]> config-apu;
+
+    in property<[string]> active-chips: [];
+    in property<bool> enabled: true;
+
+    VerticalBox {
+        alignment: start;
+        i-chip-select := ComboBox {
+            model: root.active-chips;
+            enabled: root.enabled;
+        }
+        if i-chip-select.current-value == "2A03": VerticalBox {
+            alignment: start;
+
+            for config[i] in config-2a03: ChannelConfigRow {
+                config: config;
+                enabled: root.enabled;
+                updated(new-config) => {
+                    root.config-2a03[i] = new-config;
+                }
+            }
+        }
+        if i-chip-select.current-value == "MMC5": VerticalBox {
+            alignment: start;
+
+            for config[i] in config-mmc5: ChannelConfigRow {
+                config: config;
+                enabled: root.enabled;
+                updated(new-config) => {
+                    root.config-mmc5[i] = new-config;
+                }
+            }
+        }
+        if i-chip-select.current-value == "N163": VerticalBox {
+            alignment: start;
+
+            for config[i] in config-n163: ChannelConfigRow {
+                config: config;
+                enabled: root.enabled;
+                updated(new-config) => {
+                    root.config-n163[i] = new-config;
+                }
+            }
+        }
+        if i-chip-select.current-value == "VRC6": VerticalBox {
+            alignment: start;
+
+            for config[i] in config-vrc6: ChannelConfigRow {
+                config: config;
+                enabled: root.enabled;
+                updated(new-config) => {
+                    root.config-vrc6[i] = new-config;
+                }
+            }
+        }
+        if i-chip-select.current-value == "VRC7": VerticalBox {
+            alignment: start;
+
+            for config[i] in config-vrc7: ChannelConfigRow {
+                config: config;
+                enabled: root.enabled;
+                updated(new-config) => {
+                    root.config-vrc7[i] = new-config;
+                }
+            }
+        }
+        if i-chip-select.current-value == "S5B": VerticalBox {
+            alignment: start;
+
+            for config[i] in config-s5b: ChannelConfigRow {
+                config: config;
+                enabled: root.enabled;
+                updated(new-config) => {
+                    root.config-s5b[i] = new-config;
+                }
+            }
+        }
+        if i-chip-select.current-value == "FDS": VerticalBox {
+            alignment: start;
+
+            for config[i] in config-fds: ChannelConfigRow {
+                config: config;
+                enabled: root.enabled;
+                updated(new-config) => {
+                    root.config-fds[i] = new-config;
+                }
+            }
+        }
+        if i-chip-select.current-value == "APU": VerticalBox {
+            alignment: start;
+
+            for config[i] in config-apu: ChannelConfigRow {
+                config: config;
+                enabled: root.enabled;
+                updated(new-config) => {
+                    root.config-apu[i] = new-config;
+                }
+            }
+        }
+    }
+}

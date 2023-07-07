@@ -11,7 +11,7 @@ use rusticnes_ui_common::application::RuntimeState as RusticNESRuntimeState;
 use rusticnes_ui_common::drawing::{blit, Color, SimpleBuffer};
 use rusticnes_ui_common::events::Event;
 use rusticnes_ui_common::panel::Panel;
-use rusticnes_ui_common::piano_roll_window::{PianoRollWindow, PollingType};
+use rusticnes_ui_common::piano_roll_window::{ChannelSettings, PianoRollWindow, PollingType};
 use rusticnes_ui_common::settings::SettingsState;
 use super::{SongPosition, DEFAULT_CONFIG};
 use super::nsf::{Nsf, NsfDriverType};
@@ -67,14 +67,13 @@ impl Emulator {
         self._dispatch();
     }
 
-    pub fn init(&mut self, config: Option<&str>) {
+    pub fn init(&mut self) {
         let default_settings = SettingsState::new();
         let default_settings_events = default_settings.apply_settings();
         self.event_queue.extend(default_settings_events);
         self._dispatch();
 
-        self.runtime.settings.load_str(config.unwrap_or(DEFAULT_CONFIG));
-
+        self.runtime.settings.load_str(DEFAULT_CONFIG);
         let settings_events = self.runtime.settings.apply_settings();
         self.event_queue.extend(settings_events);
         self._dispatch();
@@ -333,5 +332,29 @@ impl Emulator {
             None => generic_progress
         };
         Ok(result)
+    }
+
+    pub fn channel_settings(&self) -> HashMap<(String, String), ChannelSettings> {
+        let mut result: HashMap<(String, String), ChannelSettings> = HashMap::new();
+
+        for (chip, channels) in self.piano_roll_window.channel_settings.iter() {
+            for (channel, settings) in channels {
+                result.insert((chip.clone(), channel.clone()), settings.clone());
+            }
+        }
+
+        result
+    }
+
+    pub fn apply_channel_settings(&mut self, settings: &HashMap<(String, String), ChannelSettings>) {
+        for ((chip, channel), channel_settings) in settings.iter() {
+            self.piano_roll_window.channel_settings
+                .entry(chip.clone())
+                .and_modify(|chip_settings| {
+                    if chip_settings.contains_key(channel) {
+                        chip_settings.insert(channel.clone(), channel_settings.clone());
+                    }
+                });
+        }
     }
 }

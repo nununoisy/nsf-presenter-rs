@@ -24,10 +24,11 @@ impl Renderer {
     pub fn new(options: RendererOptions) -> Result<Self, String> {
         let mut emulator = emulator::Emulator::new();
 
-        emulator.init(None);
+        emulator.init();
         emulator.open(&options.input_path)?;
         emulator.select_track(options.track_index);
         emulator.config_audio(options.video_options.sample_rate as _, 0x10000, options.famicom, options.high_quality, options.multiplexing);
+        emulator.apply_channel_settings(&options.channel_settings);
 
         let mut video_options = options.video_options.clone();
         video_options.resolution_in = emulator.get_piano_roll_size();

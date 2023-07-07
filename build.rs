@@ -22,6 +22,8 @@ fn apply_windows_resources() {
 
 fn main() {
     apply_windows_resources();
+    compile("src/gui/slint/color-picker.slint");
+    compile("src/gui/slint/channel-config.slint");
     compile("src/gui/slint/module-metadata.slint");
     compile("src/gui/slint/main.slint");
 }
