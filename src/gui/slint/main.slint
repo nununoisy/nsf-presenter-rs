@@ -6,10 +6,12 @@ export { ColorUtils }
 
 export component MainWindow inherits Window {
     callback browse_for_module();
+    callback browse_for_background();
     callback update_formatted_duration();
     callback start_render();
 
     in property <string> module_path: "";
+    in-out property <string> background_path: "";
     in-out property <int> selected_track_index: -1;
     in-out property <string> selected_track_text: "Select a track...";
     in-out property <string> track_duration_num: "300";
@@ -147,6 +149,33 @@ export component MainWindow inherits Window {
             config-s5b <=> root.config-s5b;
             config-fds <=> root.config-fds;
             config-apu <=> root.config-apu;
+        }
+        HorizontalLayout {
+            alignment: stretch;
+            spacing: 8px;
+            Text {
+                text: "Background:";
+                vertical-alignment: center;
+            }
+            LineEdit {
+                enabled: false;
+                text: background_path;
+                placeholder-text: "No background selected";
+            }
+            Button {
+                text: "Browse...";
+                enabled: !rendering;
+                clicked => {
+                    root.browse_for_background();
+                }
+            }
+            Button {
+                text: "Clear";
+                enabled: !rendering;
+                clicked => {
+                    root.background_path = "";
+                }
+            }
         }
         HorizontalLayout {
             alignment: stretch;

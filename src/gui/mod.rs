@@ -17,6 +17,7 @@ use rusticnes_ui_common::drawing;
 use crate::emulator::{Emulator, Nsf, NsfDriverType};
 use crate::gui::render_thread::RenderThreadMessage;
 use crate::renderer::options::{FRAME_RATE, RendererOptions, StopCondition};
+use crate::video_builder::backgrounds::VideoBackground;
 
 slint::include_modules!();
 
@@ -124,6 +125,19 @@ fn get_default_channel_settings() -> HashMap<(String, String), ChannelSettings> 
 fn browse_for_module_dialog() -> Option<String> {
     let file = FileDialog::new()
         .add_filter("Nintendo Sound Files", &["nsf"])
+        .show_open_single_file();
+
+    match file {
+        Ok(Some(path)) => Some(path.to_str().unwrap().to_string()),
+        _ => None
+    }
+}
+
+fn browse_for_background_dialog() -> Option<String> {
+    let file = FileDialog::new()
+        .add_filter("All supported formats", &["mp4", "mkv", "mov", "avi", "webm", "gif", "jpg", "jpeg", "png", "bmp", "tif", "tiff", "webp", "qoi"])
+        .add_filter("Video background formats", &["mp4", "mkv", "mov", "avi", "webm", "gif"])
+        .add_filter("Image background formats", &["jpg", "jpeg", "png", "bmp", "tif", "tiff", "webp", "qoi"])
         .show_open_single_file();
 
     match file {
@@ -326,6 +340,21 @@ pub fn run() {
     {
         let main_window_weak = main_window.as_weak();
         let mut options = options.clone();
+        main_window.on_browse_for_background(move || {
+            match browse_for_background_dialog() {
+                Some(path) => {
+                    main_window_weak.unwrap().set_background_path(path.clone().into());
+
+                    options.borrow_mut().video_options.background_path = Some(path.into());
+                },
+                None => ()
+            }
+        });
+    }
+
+    {
+        let main_window_weak = main_window.as_weak();
+        let mut options = options.clone();
         main_window.on_update_formatted_duration(move || {
             let module_metadata = main_window_weak.unwrap().get_module_metadata();
             let extended_durations: Vec<i32> = module_metadata.extended_durations
@@ -471,6 +500,10 @@ pub fn run() {
                     .collect();
             }
             options.borrow_mut().channel_settings = channel_settings;
+
+            if main_window_weak.unwrap().get_background_path().is_empty() {
+                options.borrow_mut().video_options.background_path = None;
+            }
 
             rt_tx.send(Some(options.borrow().clone())).unwrap();
         });

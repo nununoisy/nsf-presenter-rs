@@ -1,6 +1,5 @@
 mod nsf;
 mod nsfeparser;
-// mod background;
 mod emulator;
 
 use std::fmt::{Display, Formatter};

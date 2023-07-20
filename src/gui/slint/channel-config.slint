@@ -30,7 +30,7 @@ component ChannelConfigRow {
 
         for color[i] in config.colors: Rectangle {
             Rectangle {
-                background: root.config.hidden ? root.grayscale(color) : Colors.rgb(color[0], color[1], color[2]);
+                background: (root.config.hidden || !root.enabled) ? root.grayscale(color) : Colors.rgb(color[0], color[1], color[2]);
                 x: 2px;
                 y: 2px;
                 height: parent.height - 4px;
@@ -68,7 +68,7 @@ component ChannelConfigRow {
                 }
             }
             i-touch := TouchArea {
-                mouse-cursor: root.config.hidden ? default : pointer;
+                mouse-cursor: (root.config.hidden || !root.enabled) ? default : pointer;
                 clicked => {
                     if (!root.config.hidden && root.enabled) {
                         i-popup.show();
@@ -102,9 +102,17 @@ export component ChannelConfigView {
 
     VerticalBox {
         alignment: start;
-        i-chip-select := ComboBox {
-            model: root.active-chips;
-            enabled: root.enabled;
+        HorizontalLayout {
+            alignment: stretch;
+            spacing: 8px;
+            Text {
+                text: "Configure chip:";
+                vertical-alignment: center;
+            }
+            i-chip-select := ComboBox {
+                model: root.active-chips;
+                enabled: root.enabled;
+            }
         }
         if i-chip-select.current-value == "2A03": VerticalBox {
             alignment: start;
