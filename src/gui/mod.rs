@@ -148,15 +148,27 @@ fn browse_for_background_dialog() -> Option<String> {
 
 fn browse_for_video_dialog() -> Option<String> {
     let file = FileDialog::new()
-        .add_filter("All supported formats", &["mp4", "mkv"])
+        .add_filter("All supported formats", &["mp4", "mkv", "mov"])
         .add_filter("MPEG-4 Video", &["mp4"])
         .add_filter("Matroska Video", &["mkv"])
+        .add_filter("QuickTime Video", &["mov"])
         .show_save_single_file();
 
     match file {
         Ok(Some(path)) => Some(path.to_str().unwrap().to_string()),
         _ => None
     }
+}
+
+fn confirm_prores_export_dialog() -> bool {
+    MessageDialog::new()
+        .set_title("NSFPresenter")
+        .set_text("You have chosen to export a QuickTime video. Do you want to export in ProRes 4444 format to \
+                   preserve alpha information for video editing? Note that ProRes 4444 is a lossless codec, so \
+                   the exported file may be very large.")
+        .set_type(MessageType::Info)
+        .show_confirm()
+        .unwrap()
 }
 
 fn display_error_dialog(text: &str) {
@@ -421,6 +433,18 @@ pub fn run() {
                 Some(path) => path,
                 None => return
             };
+
+            if output_path.ends_with(".mov") && confirm_prores_export_dialog() {
+                // Fairly close approximation of the NES' frame rate with a timebase denominator <100000.
+                // Required to avoid "codec timebase is very high" warning from the QuickTime encoder.
+                options.borrow_mut().video_options.video_time_base = (800, 48_078).into();
+                // -c:v prores_ks -profile:v 4 -bits_per_mb 1000 -pix_fmt yuva444p10le
+                options.borrow_mut().video_options.video_codec = "prores_ks".to_string();
+                options.borrow_mut().video_options.video_codec_params.insert("profile".to_string(), "4".to_string());
+                options.borrow_mut().video_options.video_codec_params.insert("bits_per_mb".to_string(), "1000".to_string());
+                options.borrow_mut().video_options.pixel_format_out = "yuva444p10le".to_string();
+            }
+
             options.borrow_mut().video_options.output_path = output_path;
 
             match &options.borrow().stop_condition {
