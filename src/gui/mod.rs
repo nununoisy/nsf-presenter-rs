@@ -15,7 +15,7 @@ use indicatif::{FormattedDuration, HumanBytes};
 use rusticnes_ui_common::piano_roll_window::ChannelSettings;
 use rusticnes_ui_common::drawing;
 use crate::emulator::{Emulator, Nsf, NsfDriverType};
-use crate::gui::render_thread::RenderThreadMessage;
+use crate::gui::render_thread::{RenderThreadMessage, RenderThreadRequest};
 use crate::renderer::options::{FRAME_RATE, RendererOptions, StopCondition};
 use crate::video_builder::backgrounds::VideoBackground;
 
@@ -321,6 +321,17 @@ pub fn run() {
                         ]));
                     }).unwrap();
                 }
+                RenderThreadMessage::RenderCancelled => {
+                    let main_window_weak = main_window_weak.clone();
+                    slint::invoke_from_event_loop(move || {
+                        main_window_weak.unwrap().set_rendering(false);
+                        main_window_weak.unwrap().set_progress(0.0);
+                        main_window_weak.unwrap().set_progress_bar_text("Idle".into());
+                        main_window_weak.unwrap().set_progress_lines(slint_string_arr(vec![
+                            "Render cancelled.".to_string()
+                        ]));
+                    }).unwrap();
+                }
             }
         })
     };
@@ -529,13 +540,20 @@ pub fn run() {
                 options.borrow_mut().video_options.background_path = None;
             }
 
-            rt_tx.send(Some(options.borrow().clone())).unwrap();
+            rt_tx.send(RenderThreadRequest::StartRender(options.borrow().clone())).unwrap();
+        });
+    }
+
+    {
+        let rt_tx = rt_tx.clone();
+        main_window.on_cancel_render(move || {
+            rt_tx.send(RenderThreadRequest::CancelRender).unwrap();
         });
     }
 
     main_window.run().unwrap();
 
-    if rt_tx.send(None).is_ok() {
+    if rt_tx.send(RenderThreadRequest::Terminate).is_ok() {
         // If the send failed, the channel is closed, so the thread is probably already dead.
         rt_handle.join().unwrap();
     }

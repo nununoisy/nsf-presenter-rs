@@ -9,6 +9,7 @@ export component MainWindow inherits Window {
     callback browse_for_background();
     callback update_formatted_duration();
     callback start_render();
+    callback cancel_render();
 
     in property <string> module_path: "";
     in-out property <string> background_path: "";
@@ -294,11 +295,15 @@ export component MainWindow inherits Window {
             alignment: center;
             Button {
                 text: rendering
-                    ? "Rendering..."
+                    ? "Cancel"
                     : "Render!";
-                enabled: !rendering;
+                primary: !rendering;
                 clicked => {
-                    root.start_render();
+                    if (rendering) {
+                        root.cancel_render();
+                    } else {
+                        root.start_render();
+                    }
                 }
             }
         }
