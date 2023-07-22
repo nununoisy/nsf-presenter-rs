@@ -74,8 +74,11 @@ codecs is planned.
 6. Select the output video resolution. You can enter a custom resolution
    or use the 1080p/4K presets.
 7. Optionally select a background for the visualization. You can select many
-   common image and video formats to use as a background. You can also elect
-   to export a transparent video later if you would like to use a video editor.
+   common image and video formats to use as a background. 
+    - You can also elect to export a transparent video later if you would like
+      to use a video editor.
+    - *Note:* Video backgrounds must be 60 FPS, or they will play at
+      the wrong speed. A fix for this is planned.
 8. Select additional rendering options:
     - Famicom mode: Emulates the Famicom's audio filter chain instead of the
       NES', which results in a slightly noisier sound.
