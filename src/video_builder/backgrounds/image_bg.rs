@@ -11,10 +11,7 @@ impl ImageBackground {
             Ok(i) => i,
             Err(_) => return None
         };
-        let img = dyn_img
-            .as_rgba8()
-            .expect("Convert image to RGBA");
-        let img = image::imageops::resize(img, w, h, image::FilterType::Gaussian);
+        let img = image::imageops::resize(&dyn_img.to_rgba(), w, h, image::imageops::Gaussian);
 
         let mut frame = frame::Video::new(format::Pixel::RGBA, w, h);
         frame.data_mut(0).copy_from_slice(&img.into_raw());
