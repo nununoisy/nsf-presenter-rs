@@ -24,18 +24,20 @@ codecs is planned.
 ## Features
 
 - Supports NSF and NSF2 modules.
+- Supports all NSF expansion audio mappers.
 - Customized version of RusticNES:
   - Added FDS audio support.
   - Slight performance enhancements for NSF playback.
 - Outputs a video file:
   - Customizable resolution (default 1080p) at 60.10 FPS (the NES'/Famicom's true framerate).
   - MPEG-4 container with fast-start (`moov` atom at beginning of file).
-  - Matroska (MKV) containers are also supported.
+  - Matroska (MKV) and QuickTime (MOV) containers are also supported.
   - yuv420p H.264 video stream encoded with libx264, crf: 16.
+  - If using QuickTime, ProRes 4444 streams encoded with prores_ks are also supported.
   - Mono AAC LC audio stream encoded with FFmpeg's aac encoder, bitrate: 192k.
 - Video files are suitable for direct upload to most websites:
   - Outputs the recommended format for YouTube, Twitter, and Discord (w/ Nitro).
-  - Typical exports (1080p, up to 5 minutes) are usually below 100MB.
+  - Typical H.264 exports (1080p, up to 5 minutes) are usually below 100MB.
 - Video files have metadata based on NSF metadata (title, artist, copyright, track index).
 - Loop detection for FamiTracker NSF exports.
 - NSF2 features:
@@ -71,7 +73,10 @@ codecs is planned.
    video duration above, rather it's added on to the end.
 6. Select the output video resolution. You can enter a custom resolution
    or use the 1080p/4K presets.
-7. Select additional rendering options:
+7. Optionally select a background for the visualization. You can select many
+   common image and video formats to use as a background. You can also elect
+   to export a transparent video later if you would like to use a video editor.
+8. Select additional rendering options:
     - Famicom mode: Emulates the Famicom's audio filter chain instead of the
       NES', which results in a slightly noisier sound.
     - High-quality filtering: Uses more accurate filter emulation for slightly
@@ -79,10 +84,13 @@ codecs is planned.
     - Emulate multiplexing: Accurately emulates multiplexing in mappers like
       the N163. This results in a grittier sound, which may be desirable as
       it is sometimes used for effects.
-8. Click **Render!** to select the output video filename and begin rendering
+9. Click **Render!** to select the output video filename and begin rendering
    the visualization.
-9. Once the render is complete, you can select another track or even change
-   modules to render another tune.
+    - If you would like to render a transparent video for editing, then choose
+      a filename ending in `.mov` to export in a QuickTime container. When asked
+      if you would like to export using ProRes 4444, select **OK**.
+10. Once the render is complete, you can select another track or even change
+    modules to render another tune.
 
 ### CLI
 
