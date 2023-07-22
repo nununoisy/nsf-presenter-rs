@@ -203,7 +203,6 @@ pub fn run() {
             .iter()
             .map(|c| format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b()))
             .collect();
-        println!("{} {} - {} {}", chip, channel, settings.hidden, colors.join(", "));
 
         let configs_model = match chip.as_str() {
             "2A03" => main_window.get_config_2a03(),
