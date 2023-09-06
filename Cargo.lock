@@ -1196,6 +1196,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a357d28ed41a50f9c765dbfe56cbc04a64e53e5fc58ba79fbc34c10ef3df831f"
 
 [[package]]
+name = "encoding_rs"
+version = "0.8.33"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7268b386296a025e474d5140678f75d6de9493ae55a5d709eeb9dd08149945e1"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "enumflags2"
 version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2536,6 +2545,7 @@ version = "0.5.0"
 dependencies = [
  "build-time",
  "clap",
+ "encoding_rs",
  "ffmpeg-next",
  "ffmpeg-sys-next",
  "image 0.19.0",
