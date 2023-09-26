@@ -1,6 +1,7 @@
 mod nsf;
 mod nsfeparser;
 mod emulator;
+pub mod m3u_searcher;
 
 use std::fmt::{Display, Formatter};
 

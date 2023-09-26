@@ -14,7 +14,7 @@ use std::time::Duration;
 use indicatif::{FormattedDuration, HumanBytes};
 use rusticnes_ui_common::piano_roll_window::ChannelSettings;
 use rusticnes_ui_common::drawing;
-use crate::emulator::{Emulator, Nsf, NsfDriverType};
+use crate::emulator::{Emulator, m3u_searcher, Nsf, NsfDriverType};
 use crate::gui::render_thread::{RenderThreadMessage, RenderThreadRequest};
 use crate::renderer::options::{FRAME_RATE, RendererOptions, StopCondition};
 use crate::video_builder::backgrounds::VideoBackground;
@@ -50,8 +50,10 @@ fn slint_color_component_arr<I: IntoIterator<Item = drawing::Color>>(a: I) -> sl
     slint::ModelRc::new(slint::VecModel::from(color_vecs))
 }
 
-fn get_module_metadata(path: &str) -> ModuleMetadata {
-    let cart_data = fs::read(path).unwrap();
+fn get_module_metadata(path: &str) -> Result<ModuleMetadata, String> {
+    let m3u_metadata = m3u_searcher::search(&path)?;
+    let cart_data = fs::read(path)
+        .map_err(|e| format!("Failed to read NSF: {}", e))?;
     let nsf = Nsf::from(&cart_data);
     let nsfe_metadata = nsf.nsfe_metadata();
 
@@ -59,7 +61,7 @@ fn get_module_metadata(path: &str) -> ModuleMetadata {
         Some(nsfe_metadata) => {
             let title = nsfe_metadata.title().unwrap_or(nsf.title().unwrap());
             let artist = nsfe_metadata.artist().unwrap_or(nsf.artist().unwrap());
-            let copyright = nsfe_metadata.copyright().unwrap_or(nsf.title().unwrap());
+            let copyright = nsfe_metadata.copyright().unwrap_or(nsf.copyright().unwrap());
             (title, artist, copyright, true)
         },
         None => {
@@ -97,6 +99,9 @@ fn get_module_metadata(path: &str) -> ModuleMetadata {
                     return title;
                 }
             }
+            if let Some((title, _duration)) = m3u_metadata.get(&i) {
+                return title.clone();
+            }
             format!("Track {}", i + 1)
         })
         .collect();
@@ -112,7 +117,7 @@ fn get_module_metadata(path: &str) -> ModuleMetadata {
     result.chips = slint_string_arr(chips);
     result.tracks = slint_string_arr(tracks);
 
-    result
+    Ok(result)
 }
 
 fn get_default_channel_settings() -> HashMap<(String, String), ChannelSettings> {
@@ -246,17 +251,21 @@ pub fn run() {
         render_thread::render_thread(move |msg| {
             match msg {
                 RenderThreadMessage::Error(e) => {
+                    let main_window_weak = main_window_weak.clone();
                     slint::invoke_from_event_loop(move || {
-                        let error_message = format!("Render thread reported error: {}\
-                                                           \n\nThe program will now exit", e);
-                        display_error_dialog(&error_message);
-                        slint::quit_event_loop().unwrap();
+                        main_window_weak.unwrap().set_rendering(false);
+                        main_window_weak.unwrap().set_progress_error(true);
+                        main_window_weak.unwrap().set_progress_status(format!("Render error: {}", e).into());
                     }).unwrap();
                 }
                 RenderThreadMessage::RenderStarting => {
                     let main_window_weak = main_window_weak.clone();
                     slint::invoke_from_event_loop(move || {
-                        main_window_weak.unwrap().set_rendering(true)
+                        main_window_weak.unwrap().set_rendering(true);
+                        main_window_weak.unwrap().set_progress_error(false);
+                        main_window_weak.unwrap().set_progress(0.0);
+                        main_window_weak.unwrap().set_progress_title("Setting up".into());
+                        main_window_weak.unwrap().set_progress_status("Preparing your song".into());
                     }).unwrap();
                 }
                 RenderThreadMessage::RenderProgress(p) => {
@@ -266,47 +275,41 @@ pub fn run() {
                         Some(duration) => FormattedDuration(duration).to_string(),
                         None => "?".to_string()
                     };
-                    let elapsed_duration = FormattedDuration(p.elapsed_duration);
+                    // let elapsed_duration = FormattedDuration(p.elapsed_duration);
                     let eta_duration = match p.eta_duration {
                         Some(duration) => FormattedDuration(duration).to_string(),
                         None => "?".to_string()
                     };
-                    let song_position = match p.song_position {
-                        Some(position) => position.to_string(),
-                        None => "?".to_string()
-                    };
-                    let loop_count = match p.loop_count {
-                        Some(loops) => loops.to_string(),
-                        None => "?".to_string()
-                    };
+                    // let song_position = match p.song_position {
+                    //     Some(position) => position.to_string(),
+                    //     None => "?".to_string()
+                    // };
+                    // let loop_count = match p.loop_count {
+                    //     Some(loops) => loops.to_string(),
+                    //     None => "?".to_string()
+                    // };
 
-                    let status_lines = vec![
-                        format!(
-                            "FPS: {}, Encoded: {}/{}, Output size: {}",
-                            p.average_fps,
-                            current_video_duration, expected_video_duration,
-                            current_video_size
-                        ),
-                        format!(
-                            "Elapsed/ETA: {}/{}, Driver position: {}, Loop count: {}",
-                            elapsed_duration, eta_duration,
-                            song_position,
-                            loop_count
-                        )
-                    ];
-                    let (progress, progress_bar_text) = match p.expected_duration_frames {
+                    let (progress, progress_title) = match p.expected_duration_frames {
                         Some(exp_dur_frames) => {
                             let progress = p.frame as f64 / exp_dur_frames as f64;
-                            (progress, format!("{}%", (progress * 100.0) as usize))
+                            (progress, "Rendering".to_string())
                         },
-                        None => (0.0, "Waiting for loop detection...".to_string()),
+                        None => (0.0, "Initializing".to_string()),
                     };
+                    let progress_status = format!(
+                        "{}%, {} FPS, encoded {}/{} ({}), {} remaining",
+                        (progress * 100.0).round(),
+                        p.average_fps,
+                        current_video_duration, expected_video_duration,
+                        current_video_size,
+                        eta_duration
+                    );
 
                     let main_window_weak = main_window_weak.clone();
                     slint::invoke_from_event_loop(move || {
                         main_window_weak.unwrap().set_progress(progress as f32);
-                        main_window_weak.unwrap().set_progress_bar_text(progress_bar_text.into());
-                        main_window_weak.unwrap().set_progress_lines(slint_string_arr(status_lines));
+                        main_window_weak.unwrap().set_progress_title(progress_title.into());
+                        main_window_weak.unwrap().set_progress_status(progress_status.into());
                     }).unwrap();
                 }
                 RenderThreadMessage::RenderComplete => {
@@ -314,21 +317,16 @@ pub fn run() {
                     slint::invoke_from_event_loop(move || {
                         main_window_weak.unwrap().set_rendering(false);
                         main_window_weak.unwrap().set_progress(1.0);
-                        main_window_weak.unwrap().set_progress_bar_text("100%".into());
-                        main_window_weak.unwrap().set_progress_lines(slint_string_arr(vec![
-                            "Done!".to_string()
-                        ]));
+                        main_window_weak.unwrap().set_progress_title("Idle".into());
+                        main_window_weak.unwrap().set_progress_status("Finished".into());
                     }).unwrap();
                 }
                 RenderThreadMessage::RenderCancelled => {
                     let main_window_weak = main_window_weak.clone();
                     slint::invoke_from_event_loop(move || {
                         main_window_weak.unwrap().set_rendering(false);
-                        main_window_weak.unwrap().set_progress(0.0);
-                        main_window_weak.unwrap().set_progress_bar_text("Idle".into());
-                        main_window_weak.unwrap().set_progress_lines(slint_string_arr(vec![
-                            "Render cancelled.".to_string()
-                        ]));
+                        main_window_weak.unwrap().set_progress_title("Idle".into());
+                        main_window_weak.unwrap().set_progress_status("Render cancelled".into());
                     }).unwrap();
                 }
             }
@@ -341,18 +339,22 @@ pub fn run() {
         main_window.on_browse_for_module(move || {
             match browse_for_module_dialog() {
                 Some(path) => {
-                    let metadata = get_module_metadata(&path);
-                    main_window_weak.unwrap().set_module_path(path.clone().into());
-                    main_window_weak.unwrap().set_module_metadata(metadata);
+                    match get_module_metadata(&path) {
+                        Ok(metadata) => {
+                            main_window_weak.unwrap().set_module_path(path.clone().into());
+                            main_window_weak.unwrap().set_module_metadata(metadata);
 
-                    main_window_weak.unwrap().set_selected_track_index(-1);
-                    main_window_weak.unwrap().set_selected_track_text("Select a track...".into());
+                            main_window_weak.unwrap().set_selected_track_index(-1);
+                            main_window_weak.unwrap().set_selected_track_text("Select a track...".into());
 
-                    main_window_weak.unwrap().set_track_duration_num("300".into());
-                    main_window_weak.unwrap().set_track_duration_type("seconds".into());
-                    main_window_weak.unwrap().invoke_update_formatted_duration();
+                            main_window_weak.unwrap().set_track_duration_num("300".into());
+                            main_window_weak.unwrap().set_track_duration_type("seconds".into());
+                            main_window_weak.unwrap().invoke_update_formatted_duration();
 
-                    options.borrow_mut().input_path = path.into();
+                            options.borrow_mut().input_path = path.into();
+                        },
+                        Err(e) => display_error_dialog(&e)
+                    }
                 },
                 None => ()
             }
