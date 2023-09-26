@@ -105,7 +105,7 @@ impl Nsf {
             .position(|i| self.raw_bytes[i] == 0)
             .unwrap_or(max_len);
 
-        if let Some(shift_jis) = decode_shift_jis(&self.data[offset..offset+end]) {
+        if let Some(shift_jis) = decode_shift_jis(&self.raw_bytes[offset..offset+end]) {
             return Ok(shift_jis);
         }
         match str::from_utf8(&self.raw_bytes[offset..offset+end]) {
