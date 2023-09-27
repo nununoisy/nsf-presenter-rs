@@ -126,6 +126,7 @@ impl Emulator {
         if index > 0 && index <= self.track_count() {
             self.nsf_track_index = index;
             self.runtime.nes.mapper.nsf_set_track(index);
+            self.runtime.nes.mapper.nsf_manual_mode();
         }
     }
 
