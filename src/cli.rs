@@ -1,11 +1,39 @@
+use std::collections::HashMap;
 use clap::{arg, ArgAction, value_parser, Command};
 use std::path::PathBuf;
-use std::collections::VecDeque;
 use std::fmt::Write as _;
-use std::time::Instant;
-use std::time::Duration;
 use indicatif::{FormattedDuration, HumanBytes, ProgressBar, ProgressStyle};
+use rusticnes_ui_common::piano_roll_window::ChannelSettings;
+use rusticnes_ui_common::drawing;
+use csscolorparser::Color as CssColor;
 use crate::renderer::{Renderer, options::{RendererOptions, StopCondition}};
+use crate::emulator::Emulator;
+
+fn get_default_channel_settings() -> HashMap<(String, String), ChannelSettings> {
+    let mut emulator = Emulator::new();
+    emulator.init(None);
+
+    emulator.channel_settings()
+}
+
+fn color_value_parser(s: &str) -> Result<drawing::Color, String> {
+    let parsed_color = s.parse::<CssColor>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(drawing::Color::rgba(
+        (parsed_color.r * 255.0) as u8,
+        (parsed_color.g * 255.0) as u8,
+        (parsed_color.b * 255.0) as u8,
+        (parsed_color.a * 255.0) as u8
+    ))
+}
+
+fn codec_option_value_parser(s: &str) -> Result<(String, String), String> {
+    let (key, value) = s.split_once('=')
+        .ok_or("Invalid option specification (must be of the form 'option=value').".to_string())?;
+
+    Ok((key.to_string(), value.to_string()))
+}
 
 fn get_renderer_options() -> RendererOptions {
     let matches = Command::new("NSFPresenter")
@@ -45,6 +73,27 @@ fn get_renderer_options() -> RendererOptions {
             .required(false)
             .value_parser(value_parser!(u32))
             .default_value("1080"))
+        .arg(arg!(-o --"video-option" <OPTION> "Pass an option to the video codec (option=value)")
+            .required(false)
+            .value_parser(codec_option_value_parser)
+            .action(ArgAction::Append))
+        .arg(arg!(-O --"audio-option" <OPTION> "Pass an option to the audio codec (option=value)")
+            .required(false)
+            .value_parser(codec_option_value_parser)
+            .action(ArgAction::Append))
+        .arg(arg!(-k --"channel-color" "Set the colors for a channel.")
+            .required(false)
+            .num_args(3..=18)
+            .value_names(&["CHIP", "CHANNEL", "COLORS..."])
+            .action(ArgAction::Append))
+        .arg(arg!(-H --"hide-channel" "Hide a channel from the visualization.")
+            .required(false)
+            .num_args(2)
+            .value_names(&["CHIP", "CHANNEL"])
+            .action(ArgAction::Append))
+        .arg(arg!(-i --"import-config" <CONFIGFILE> "Import configuration from a RusticNES TOML file.")
+             .value_parser(value_parser!(PathBuf))
+            .required(false))
         .arg(arg!(-J --"famicom" "Simulate the Famicom's filter chain instead of the NES'.")
             .action(ArgAction::SetTrue))
         .arg(arg!(-L --"lq-filters" "Use low-quality filter chain. Speeds up renders but has dirtier sound.")
@@ -110,6 +159,64 @@ fn get_renderer_options() -> RendererOptions {
         .unwrap();
     options.video_options.resolution_out = (ow, oh);
 
+    if let Some(video_options) = matches.get_many::<(String, String)>("video-option") {
+        for (k, v) in video_options.cloned() {
+            options.video_options.video_codec_params.insert(k, v);
+        }
+    }
+    if let Some(audio_options) = matches.get_many::<(String, String)>("audio-option") {
+        for (k, v) in audio_options.cloned() {
+            options.video_options.audio_codec_params.insert(k, v);
+        }
+    }
+
+    options.channel_settings = get_default_channel_settings();
+
+    if let Some(channel_settings) = matches.get_occurrences::<String>("channel-color") {
+        for channel_setting_parts in channel_settings.map(Iterator::collect::<Vec<&String>>) {
+            let chip = channel_setting_parts.get(0)
+                .expect("Channel setting must have chip name")
+                .clone()
+                .clone();
+            let channel = channel_setting_parts.get(1)
+                .expect("Channel setting must have channel name")
+                .clone()
+                .clone();
+
+            let setting = options.channel_settings.get_mut(&(chip.clone(), channel.clone()))
+                .expect(format!("Unknown chip/channel specified: {} {}", chip.clone(), channel.clone()).as_str());
+
+            if setting.colors.len() != channel_setting_parts.len() - 2 {
+                panic!("Wrong number of colors specified for chip/channel {} {}: expected {} colors", chip.clone(), channel.clone(), setting.colors.len());
+            }
+            setting.colors = channel_setting_parts.iter()
+                .skip(2)
+                .map(|c| color_value_parser(c.as_str()).expect("Invalid color"))
+                .collect();
+        }
+    }
+
+    if let Some(hidden_channels) = matches.get_occurrences::<String>("hide-channel") {
+        for hidden_channel_parts in hidden_channels.map(Iterator::collect::<Vec<&String>>) {
+            let chip = hidden_channel_parts.get(0)
+                .expect("Hidden channel must have chip name")
+                .clone()
+                .clone();
+            let channel = hidden_channel_parts.get(1)
+                .expect("Hidden channel must have channel name")
+                .clone()
+                .clone();
+
+            let setting = options.channel_settings.get_mut(&(chip.clone(), channel.clone()))
+                .expect(format!("Unknown chip/channel specified: {} {}", chip.clone(), channel.clone()).as_str());
+
+            setting.hidden = true;
+        }
+    }
+
+    options.config_import_path = matches.get_one::<PathBuf>("import-config")
+        .map(|p| p.to_str().unwrap().to_string());
+
     options.famicom = matches.get_flag("famicom");
     options.high_quality = !(matches.get_flag("lq-filters"));
     options.multiplexing = matches.get_flag("multiplexing");
@@ -141,7 +248,7 @@ pub fn run() {
                 pb.set_style(pb_style.clone());
             }
         }
-        pb.set_position(renderer.cur_frame());
+        pb.set_position(renderer.current_frame());
 
         let current_video_duration = FormattedDuration(renderer.encoded_duration());
         let current_video_size = HumanBytes(renderer.encoded_size() as u64);

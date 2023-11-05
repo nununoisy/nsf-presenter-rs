@@ -5,33 +5,37 @@ import { ColorUtils } from "./color-picker.slint";
 export { ColorUtils }
 
 export component MainWindow inherits Window {
-    callback browse_for_module();
-    callback browse_for_background();
-    callback update_formatted_duration();
-    callback start_render();
-    callback cancel_render();
+    callback browse-for-module();
+    callback browse-for-background();
+    callback import-config();
+    callback export-config();
+    callback reset-config();
+    callback update-formatted-duration();
+    callback update-channel-configs(bool);
+    callback start-render();
+    callback cancel-render();
 
-    in property <string> module_path: "";
-    in-out property <string> background_path: "";
-    in-out property <int> selected_track_index: -1;
-    in-out property <string> selected_track_text: "Select a track...";
-    in-out property <string> track_duration_num: "300";
-    in-out property <string> track_duration_type: "seconds";
-    in property <string> track_duration_formatted: "<unknown>";
-    in-out property <int> fadeout_duration: 180;
-    in-out property <int> output_width: 1920;
-    in-out property <int> output_height: 1080;
-    in-out property <bool> famicom_mode: false;
-    in-out property <bool> hq_filtering: true;
+    in property <string> module-path: "";
+    in-out property <string> background-path: "";
+    in-out property <int> selected-track-index: -1;
+    in-out property <string> selected-track-text: "Select a track...";
+    in-out property <string> track-duration-num: "300";
+    in-out property <string> track-duration-type: "seconds";
+    in property <string> track-duration-formatted: "<unknown>";
+    in-out property <int> fadeout-duration: 180;
+    in-out property <int> output-width: 1920;
+    in-out property <int> output-height: 1080;
+    in-out property <bool> famicom-mode: false;
+    in-out property <bool> hq-filtering: true;
     in-out property <bool> multiplexing: false;
-    in property <ModuleMetadata> module_metadata: {
+    in property <ModuleMetadata> module-metadata: {
         title: "<?>",
         artist: "<?>",
         copyright: "<?>",
         driver: "<?>",
-        extended_metadata: false,
-        loop_detection: false,
-        extended_durations: [],
+        extended-metadata: false,
+        loop-detection: false,
+        extended-durations: [],
         chips: [],
         tracks: []
     };
@@ -77,7 +81,7 @@ export component MainWindow inherits Window {
         { name: "C", hidden: false, colors: [] }
     ];
     in-out property<[ChannelConfig]> config-fds: [
-        { name: "FDS", hidden: false, colors: [] }
+        { name: "Wavetable", hidden: false, colors: [] }
     ];
     in-out property<[ChannelConfig]> config-apu: [
         { name: "Final Mix", hidden: false, colors: [] }
@@ -109,19 +113,19 @@ export component MainWindow inherits Window {
             }
             LineEdit {
                 enabled: false;
-                text: module_path;
+                text: module-path;
                 placeholder-text: "No module selected";
             }
             Button {
                 text: "Browse...";
                 enabled: !rendering;
                 clicked => {
-                    root.browse_for_module();
+                    root.browse-for-module();
                 }
             }
         }
         ModuleMetadataView {
-            module_metadata: module_metadata;
+            module-metadata: module-metadata;
         }
         HorizontalLayout {
             alignment: stretch;
@@ -131,17 +135,45 @@ export component MainWindow inherits Window {
                 vertical-alignment: center;
             }
             ComboBox {
-                model: module_metadata.tracks;
-                current-index <=> selected_track_index;
-                current-value <=> selected_track_text;
+                model: module-metadata.tracks;
+                current-index <=> selected-track-index;
+                current-value <=> selected-track-text;
                 enabled: !rendering;
                 selected => {
-                    root.update_formatted_duration();
+                    root.update-formatted-duration();
                 }
             }
         }
+
+        HorizontalLayout {
+            alignment: end;
+            spacing: 8px;
+            Text {
+                text: "Configuration:";
+                vertical-alignment: center;
+            }
+            Button {
+                text: "Import...";
+                clicked => {
+                    root.import-config();
+                }
+            }
+            Button {
+                text: "Export...";
+                clicked => {
+                    root.export-config();
+                }
+            }
+            Button {
+                text: "Reset";
+                clicked => {
+                    root.reset-config();
+                }
+            }
+        }
+
         ChannelConfigView {
-            active-chips: module_metadata.chips;
+            active-chips: module-metadata.chips;
             enabled: !rendering;
             config-2a03 <=> root.config-2a03;
             config-mmc5 <=> root.config-mmc5;
@@ -161,21 +193,21 @@ export component MainWindow inherits Window {
             }
             LineEdit {
                 enabled: false;
-                text: background_path;
+                text: background-path;
                 placeholder-text: "No background selected";
             }
             Button {
                 text: "Browse...";
                 enabled: !rendering;
                 clicked => {
-                    root.browse_for_background();
+                    root.browse-for-background();
                 }
             }
             Button {
                 text: "Clear";
                 enabled: !rendering;
                 clicked => {
-                    root.background_path = "";
+                    root.background-path = "";
                 }
             }
         }
@@ -186,35 +218,35 @@ export component MainWindow inherits Window {
                 text: "Render duration:";
                 vertical-alignment: center;
             }
-            if track_duration_type != "NSFe/NSF2 duration" : LineEdit {
-                text <=> track_duration_num;
+            if track-duration-type != "NSFe/NSF2 duration" : LineEdit {
+                text <=> track-duration-num;
                 enabled: !rendering;
                 edited => {
-                    root.update_formatted_duration();
+                    root.update-formatted-duration();
                 }
             }
             ComboBox {
-                model: module_metadata.loop_detection
+                model: module-metadata.loop-detection
                     ? (
-                        module_metadata.extended_durations.length > 0
+                        module-metadata.extended-durations.length > 0
                             ? ["seconds", "frames", "loops", "NSFe/NSF2 duration"]
                             : ["seconds", "frames", "loops"]
                     )
                     : (
-                        module_metadata.extended_durations.length > 0
+                        module-metadata.extended-durations.length > 0
                             ? ["seconds", "frames", "NSFe/NSF2 duration"]
                             : ["seconds", "frames"]
                     );
-                current-value <=> track_duration_type;
+                current-value <=> track-duration-type;
                 enabled: !rendering;
                 selected => {
-                    root.update_formatted_duration();
+                    root.update-formatted-duration();
                 }
             }
             Text {
-                text: track_duration_formatted;
+                text: track-duration-formatted;
                 vertical-alignment: center;
-                color: track_duration_formatted == "<error>"
+                color: track-duration-formatted == "<error>"
                     ? red
                     : white;
             }
@@ -227,7 +259,7 @@ export component MainWindow inherits Window {
                 vertical-alignment: center;
             }
             SpinBox {
-                value <=> fadeout_duration;
+                value <=> fadeout-duration;
                 minimum: 0;
                 maximum: 1200;
                 enabled: !rendering;
@@ -241,7 +273,7 @@ export component MainWindow inherits Window {
                 vertical-alignment: center;
             }
             SpinBox {
-                value <=> output_width;
+                value <=> output-width;
                 minimum: 960;
                 maximum: 7680;
                 enabled: !rendering;
@@ -251,7 +283,7 @@ export component MainWindow inherits Window {
                 vertical-alignment: center;
             }
             SpinBox {
-                value <=> output_height;
+                value <=> output-height;
                 minimum: 540;
                 maximum: 4320;
                 enabled: !rendering;
@@ -260,16 +292,16 @@ export component MainWindow inherits Window {
                 text: "1080p";
                 enabled: !rendering;
                 clicked => {
-                    output_width = 1920;
-                    output_height = 1080;
+                    output-width = 1920;
+                    output-height = 1080;
                 }
             }
             Button {
                 text: "4K";
                 enabled: !rendering;
                 clicked => {
-                    output_width = 3840;
-                    output_height = 2160;
+                    output-width = 3840;
+                    output-height = 2160;
                 }
             }
         }
@@ -278,12 +310,12 @@ export component MainWindow inherits Window {
             spacing: 8px;
             CheckBox {
                 text: "Famicom mode";
-                checked <=> famicom_mode;
+                checked <=> famicom-mode;
                 enabled: !rendering;
             }
             CheckBox {
                 text: "High-quality filtering";
-                checked <=> hq_filtering;
+                checked <=> hq-filtering;
                 enabled: !rendering;
             }
             CheckBox {
@@ -301,9 +333,9 @@ export component MainWindow inherits Window {
                 primary: !rendering;
                 clicked => {
                     if (rendering) {
-                        root.cancel_render();
+                        root.cancel-render();
                     } else {
-                        root.start_render();
+                        root.start-render();
                     }
                 }
             }

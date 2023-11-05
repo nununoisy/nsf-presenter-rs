@@ -1,5 +1,5 @@
 use std::str;
-use crate::emulator::nsfeparser::NsfeMetadata;
+use crate::emulator::nsfeparser::{nsfe_to_nsf2, NsfeMetadata};
 use encoding_rs::{CoderResult, SHIFT_JIS};
 
 pub fn find_subsequence<T>(haystack: &[T], needle: &[T]) -> Option<usize>
@@ -77,10 +77,16 @@ macro_rules! nsf2_feature_fn {
 }
 
 impl Nsf {
-    pub fn from(raw_bytes: &[u8]) -> Nsf {
+    pub fn from(data: &[u8]) -> Nsf {
+        let raw_bytes = match &data[0..4] {
+            b"NSFE" => nsfe_to_nsf2(data).unwrap(),
+            _ => data.to_vec()
+        };
+        let memoized_driver_type = determine_driver_type(&raw_bytes);
+
         Nsf {
-            raw_bytes: raw_bytes.to_vec(),
-            memoized_driver_type: determine_driver_type(&raw_bytes)
+            raw_bytes,
+            memoized_driver_type,
         }
     }
 

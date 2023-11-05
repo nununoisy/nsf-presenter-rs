@@ -1,6 +1,7 @@
 // https://www.nesdev.org/wiki/VRC7
 // https://www.nesdev.org/wiki/VRC7_audio
 
+use std::convert::TryInto;
 use ines::INesCartridge;
 use memoryblock::MemoryBlock;
 
@@ -915,6 +916,7 @@ impl Vrc7AudioChannel {
 
 pub struct Vrc7Audio {
     pub custom_patch: [u8; 8],
+    pub patches: [u8; 8 * 15],
     pub channel1: Vrc7AudioChannel,
     pub channel2: Vrc7AudioChannel,
     pub channel3: Vrc7AudioChannel,
@@ -929,6 +931,7 @@ impl Vrc7Audio {
     pub fn new() -> Vrc7Audio {
         let thing = Vrc7Audio {
             custom_patch: [0u8; 8],
+            patches: DEFAULT_PATCH_TABLE,
             channel1: Vrc7AudioChannel::new(1),
             channel2: Vrc7AudioChannel::new(2),
             channel3: Vrc7AudioChannel::new(3),
@@ -1068,7 +1071,7 @@ impl Vrc7Audio {
                     self.channel1.load_patch(&self.custom_patch);
                 } else {
                     let patch_index = ((self.channel1.instrument_index - 1) * 8) as usize;
-                    self.channel1.load_patch(&DEFAULT_PATCH_TABLE[patch_index .. patch_index + 8]);
+                    self.channel1.load_patch(&self.patches[patch_index .. patch_index + 8]);
                 }
             },
             0x31 => {
@@ -1078,7 +1081,7 @@ impl Vrc7Audio {
                     self.channel2.load_patch(&self.custom_patch);
                 } else {
                     let patch_index = ((self.channel2.instrument_index - 1) * 8) as usize;
-                    self.channel2.load_patch(&DEFAULT_PATCH_TABLE[patch_index .. patch_index + 8]);
+                    self.channel2.load_patch(&self.patches[patch_index .. patch_index + 8]);
                 }
             },
             0x32 => {
@@ -1088,7 +1091,7 @@ impl Vrc7Audio {
                     self.channel3.load_patch(&self.custom_patch);
                 } else {
                     let patch_index = ((self.channel3.instrument_index - 1) * 8) as usize;
-                    self.channel3.load_patch(&DEFAULT_PATCH_TABLE[patch_index .. patch_index + 8]);
+                    self.channel3.load_patch(&self.patches[patch_index .. patch_index + 8]);
                 }
             },
             0x33 => {
@@ -1098,7 +1101,7 @@ impl Vrc7Audio {
                     self.channel4.load_patch(&self.custom_patch);
                 } else {
                     let patch_index = ((self.channel4.instrument_index - 1) * 8) as usize;
-                    self.channel4.load_patch(&DEFAULT_PATCH_TABLE[patch_index .. patch_index + 8]);
+                    self.channel4.load_patch(&self.patches[patch_index .. patch_index + 8]);
                 }
             },
             0x34 => {
@@ -1108,7 +1111,7 @@ impl Vrc7Audio {
                     self.channel5.load_patch(&self.custom_patch);
                 } else {
                     let patch_index = ((self.channel5.instrument_index - 1) * 8) as usize;
-                    self.channel5.load_patch(&DEFAULT_PATCH_TABLE[patch_index .. patch_index + 8]);
+                    self.channel5.load_patch(&self.patches[patch_index .. patch_index + 8]);
                 }
             },
             0x35 => {
@@ -1118,7 +1121,7 @@ impl Vrc7Audio {
                     self.channel6.load_patch(&self.custom_patch);
                 } else {
                     let patch_index = ((self.channel6.instrument_index - 1) * 8) as usize;
-                    self.channel6.load_patch(&DEFAULT_PATCH_TABLE[patch_index .. patch_index + 8]);
+                    self.channel6.load_patch(&self.patches[patch_index .. patch_index + 8]);
                 }
             },
             _ => {}
@@ -1132,6 +1135,11 @@ impl Vrc7Audio {
         self.channel4.record_current_output();
         self.channel5.record_current_output();
         self.channel6.record_current_output();
+    }
+    
+    pub fn set_patches(&mut self, patches: &[u8]) {
+        // This isn't going to be called during emulation, so no need to refresh.
+        self.patches = patches.clone().try_into().unwrap_or(DEFAULT_PATCH_TABLE);
     }
 }
 

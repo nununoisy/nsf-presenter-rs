@@ -7,11 +7,11 @@ pub mod backgrounds;
 use std::collections::VecDeque;
 use std::{mem, slice};
 use std::str::FromStr;
-use ffmpeg_next::{self, Error, Rational, format, encoder, codec, ChannelLayout, Dictionary, software, frame};
+use ffmpeg_next::{self, Error, format, encoder, codec, ChannelLayout, Dictionary, software, frame};
 use video_options::VideoOptions;
 use vb_unwrap::VideoBuilderUnwrap;
 use crate::video_builder::backgrounds::{get_video_background, VideoBackground};
-use crate::video_builder::ffmpeg_hacks::{ffmpeg_copy_codec_params, ffmpeg_copy_context_params, ffmpeg_create_context, ffmpeg_sample_format_from_string, ffmpeg_set_audio_stream_frame_size};
+use crate::video_builder::ffmpeg_hacks::{ffmpeg_copy_codec_params, ffmpeg_copy_context_params, ffmpeg_create_context, ffmpeg_get_audio_context_frame_size, ffmpeg_sample_format_from_string};
 
 pub fn init() -> Result<(), Error> {
     ffmpeg_next::init()
@@ -221,7 +221,7 @@ impl VideoBuilder {
 
         stream.set_time_base(options.audio_time_base);
 
-        let a_frame_size = 1024; // ffmpeg_set_audio_stream_frame_size(&mut stream, 1024);
+        let a_frame_size = ffmpeg_get_audio_context_frame_size(&context, 1024);
 
         let mut context_options = Dictionary::new();
         // Add some default options for certain codecs

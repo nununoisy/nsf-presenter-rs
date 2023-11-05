@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::ffi::OsStr;
+use std::fmt::{Display, Formatter};
 use rusticnes_ui_common::piano_roll_window::ChannelSettings;
 use crate::video_builder::video_options::VideoOptions;
 
@@ -27,6 +28,22 @@ pub enum StopCondition {
     Frames(u64),
     Loops(usize),
     NsfeLength
+}
+
+impl Display for StopCondition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StopCondition::Frames(frames) => {
+                if (*frames % FRAME_RATE as u64) == 0 {
+                    write!(f, "time:{}", *frames / FRAME_RATE as u64)
+                } else {
+                    write!(f, "frames:{}", *frames)
+                }
+            },
+            StopCondition::Loops(loops) => write!(f, "loops:{}", *loops),
+            StopCondition::NsfeLength => write!(f, "time:nsfe")
+        }
+    }
 }
 
 impl FromStr for StopCondition {
@@ -74,7 +91,8 @@ pub struct RendererOptions {
     pub high_quality: bool,
     pub multiplexing: bool,
 
-    pub channel_settings: HashMap<(String, String), ChannelSettings>
+    pub channel_settings: HashMap<(String, String), ChannelSettings>,
+    pub config_import_path: Option<String>
 }
 
 impl Default for RendererOptions {
@@ -106,7 +124,8 @@ impl Default for RendererOptions {
             famicom: false,
             high_quality: true,
             multiplexing: false,
-            channel_settings: HashMap::new()
+            channel_settings: HashMap::new(),
+            config_import_path: None
         }
     }
 }

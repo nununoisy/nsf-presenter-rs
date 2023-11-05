@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use ffmpeg_next::Rational;
-use crate::video_builder::backgrounds::VideoBackground;
 
 #[derive(Clone)]
 pub struct VideoOptions {

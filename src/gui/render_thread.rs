@@ -1,7 +1,6 @@
 use std::thread;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
-use rusticnes_core::unofficial_opcodes::las;
 use crate::emulator::SongPosition;
 use crate::renderer::Renderer;
 use crate::renderer::options::RendererOptions;
@@ -94,7 +93,7 @@ where
                     last_progress_timestamp = Instant::now();
 
                     let progress_info = RenderProgressInfo {
-                        frame: renderer.cur_frame(),
+                        frame: renderer.current_frame(),
                         average_fps: renderer.average_fps(),
                         encoded_size: renderer.encoded_size(),
                         expected_duration_frames: renderer.expected_duration_frames(),

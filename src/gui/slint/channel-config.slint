@@ -1,4 +1,4 @@
-import { VerticalBox, ComboBox, Switch, StandardButton } from "std-widgets.slint";
+import { VerticalBox, ComboBox, Switch, StandardButton, Button } from "std-widgets.slint";
 import { ColorPicker } from "./color-picker.slint";
 
 export struct ChannelConfig {
@@ -8,8 +8,10 @@ export struct ChannelConfig {
 }
 
 component ChannelConfigRow {
-    in-out property<ChannelConfig> config;
+    in property<ChannelConfig> config;
     in property<bool> enabled: true;
+
+    property<ChannelConfig> i-config;
 
     callback updated(ChannelConfig);
 
@@ -23,8 +25,9 @@ component ChannelConfigRow {
             width: 150px;
 
             toggled => {
-                root.config.hidden = !root.config.hidden;
-                root.updated(root.config);
+                root.i-config = root.config;
+                root.i-config.hidden = !root.i-config.hidden;
+                root.updated(root.i-config);
             }
         }
 
@@ -56,7 +59,9 @@ component ChannelConfigRow {
                         g: color[1];
                         b: color[2];
                         changed(r, g, b) => {
-                            root.config.colors[i] = [r, g, b];
+                            root.i-config = root.config;
+                            root.i-config.colors[i] = [r, g, b];
+                            root.updated(root.i-config);
                         }
                     }
                     StandardButton {
@@ -102,6 +107,8 @@ export component ChannelConfigView {
 
     VerticalBox {
         alignment: start;
+        padding: 0;
+
         HorizontalLayout {
             alignment: stretch;
             spacing: 8px;

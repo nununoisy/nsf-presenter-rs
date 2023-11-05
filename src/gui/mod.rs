@@ -5,19 +5,17 @@ use slint::{Color, Model};
 use native_dialog::{FileDialog, MessageDialog, MessageType};
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::{fs, thread};
+use std::fs;
 use std::collections::HashMap;
 use std::path;
 use std::str::FromStr;
-use std::sync::mpsc;
 use std::time::Duration;
-use indicatif::{FormattedDuration, HumanBytes};
+use indicatif::{FormattedDuration, HumanBytes, HumanDuration};
 use rusticnes_ui_common::piano_roll_window::ChannelSettings;
 use rusticnes_ui_common::drawing;
 use crate::emulator::{Emulator, m3u_searcher, Nsf, NsfDriverType};
 use crate::gui::render_thread::{RenderThreadMessage, RenderThreadRequest};
 use crate::renderer::options::{FRAME_RATE, RendererOptions, StopCondition};
-use crate::video_builder::backgrounds::VideoBackground;
 
 slint::include_modules!();
 
@@ -120,16 +118,40 @@ fn get_module_metadata(path: &str) -> Result<ModuleMetadata, String> {
     Ok(result)
 }
 
-fn get_default_channel_settings() -> HashMap<(String, String), ChannelSettings> {
+fn get_emulator(import_path: Option<String>) -> Result<Emulator, String> {
     let mut emulator = Emulator::new();
-    emulator.init();
+    match import_path {
+        Some(p) => emulator.init(Some(fs::read_to_string(p).map_err(|e| e.to_string())?.as_str())),
+        None => emulator.init(None)
+    };
+    Ok(emulator)
+}
 
-    emulator.channel_settings()
+fn get_channel_settings(import_path: Option<String>) -> Result<HashMap<(String, String), ChannelSettings>, String> {
+    let emulator = get_emulator(import_path)?;
+    Ok(emulator.channel_settings())
+}
+
+fn export_channel_settings(import_path: Option<String>, channel_settings: HashMap<(String, String), ChannelSettings>) -> Result<String, String> {
+    let mut emulator = get_emulator(import_path)?;
+    emulator.apply_channel_settings(&channel_settings);
+    Ok(emulator.dump_config())
+}
+
+fn display_error_dialog(text: &str) {
+    MessageDialog::new()
+        .set_title("NSFPresenter")
+        .set_text(text)
+        .set_type(MessageType::Error)
+        .show_alert()
+        .unwrap();
 }
 
 fn browse_for_module_dialog() -> Option<String> {
     let file = FileDialog::new()
-        .add_filter("Nintendo Sound Files", &["nsf"])
+        .add_filter("All supported formats", &["nsf", "nsfe"])
+        .add_filter("Nintendo Sound Format module", &["nsf"])
+        .add_filter("Extended Nintendo Sound Format module", &["nsfe"])
         .show_open_single_file();
 
     match file {
@@ -165,6 +187,28 @@ fn browse_for_video_dialog() -> Option<String> {
     }
 }
 
+fn browse_for_config_import_dialog() -> Option<String> {
+    let file = FileDialog::new()
+        .add_filter("Configuration File", &["toml"])
+        .show_open_single_file();
+
+    match file {
+        Ok(Some(path)) => Some(path.to_str().unwrap().to_string()),
+        _ => None
+    }
+}
+
+fn browse_for_config_export_dialog() -> Option<String> {
+    let file = FileDialog::new()
+        .add_filter("Configuration File", &["toml"])
+        .show_save_single_file();
+
+    match file {
+        Ok(Some(path)) => Some(path.to_str().unwrap().to_string()),
+        _ => None
+    }
+}
+
 fn confirm_prores_export_dialog() -> bool {
     MessageDialog::new()
         .set_title("NSFPresenter")
@@ -174,15 +218,6 @@ fn confirm_prores_export_dialog() -> bool {
         .set_type(MessageType::Info)
         .show_confirm()
         .unwrap()
-}
-
-fn display_error_dialog(text: &str) {
-    MessageDialog::new()
-        .set_title("NSFPresenter")
-        .set_text(text)
-        .set_type(MessageType::Error)
-        .show_alert()
-        .unwrap();
 }
 
 pub fn run() {
@@ -202,49 +237,155 @@ pub fn run() {
         slint_int_arr([color.red() as i32, color.green() as i32, color.blue() as i32])
     });
 
-    let channel_settings = get_default_channel_settings();
-    for ((chip, channel), settings) in channel_settings.iter() {
-        let colors: Vec<_> = settings.colors
-            .iter()
-            .map(|c| format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b()))
-            .collect();
+    let options = Rc::new(RefCell::new(RendererOptions::default()));
 
-        let configs_model = match chip.as_str() {
-            "2A03" => main_window.get_config_2a03(),
-            "MMC5" => main_window.get_config_mmc5(),
-            "N163" => main_window.get_config_n163(),
-            "VRC6" => main_window.get_config_vrc6(),
-            "VRC7" => main_window.get_config_vrc7(),
-            "YM2149F" => main_window.get_config_s5b(),
-            "FDS" => main_window.get_config_fds(),
-            "APU" => main_window.get_config_apu(),
-            _ => continue
-        };
-        let mut configs: Vec<ChannelConfig> = configs_model
-            .as_any()
-            .downcast_ref::<slint::VecModel<ChannelConfig>>()
-            .unwrap()
-            .iter()
-            .collect();
-        if let Some(config) = configs.iter_mut().find(|cfg| channel.clone() == cfg.name.to_string()) {
-            config.hidden = settings.hidden;
-            config.colors = slint_color_component_arr(settings.colors.clone());
-        }
-        let new_config_model = slint::ModelRc::new(slint::VecModel::from(configs));
-        match chip.as_str() {
-            "2A03" => main_window.set_config_2a03(new_config_model),
-            "MMC5" => main_window.set_config_mmc5(new_config_model),
-            "N163" => main_window.set_config_n163(new_config_model),
-            "VRC6" => main_window.set_config_vrc6(new_config_model),
-            "VRC7" => main_window.set_config_vrc7(new_config_model),
-            "YM2149F" => main_window.set_config_s5b(new_config_model),
-            "FDS" => main_window.set_config_fds(new_config_model),
-            "APU" => main_window.set_config_apu(new_config_model),
-            _ => continue
-        }
+    {
+        let main_window_weak = main_window.as_weak();
+        let options = options.clone();
+        main_window.on_update_channel_configs(move |write_to_config| {
+            let mut channel_settings = match get_channel_settings(options.borrow().config_import_path.clone()) {
+                Ok(s) => s,
+                Err(e) => {
+                    display_error_dialog(&e);
+                    return;
+                }
+            };
+            for ((chip, channel), settings) in channel_settings.iter_mut() {
+                let configs_model = match chip.as_str() {
+                    "2A03" => main_window_weak.unwrap().get_config_2a03(),
+                    "MMC5" => main_window_weak.unwrap().get_config_mmc5(),
+                    "N163" => main_window_weak.unwrap().get_config_n163(),
+                    "VRC6" => main_window_weak.unwrap().get_config_vrc6(),
+                    "VRC7" => main_window_weak.unwrap().get_config_vrc7(),
+                    "YM2149F" => main_window_weak.unwrap().get_config_s5b(),
+                    "FDS" => main_window_weak.unwrap().get_config_fds(),
+                    "APU" => main_window_weak.unwrap().get_config_apu(),
+                    _ => continue
+                };
+                let mut configs: Vec<ChannelConfig> = configs_model
+                    .as_any()
+                    .downcast_ref::<slint::VecModel<ChannelConfig>>()
+                    .unwrap()
+                    .iter()
+                    .collect();
+                let mut config = configs.iter_mut()
+                    .find(|cfg| cfg.name.to_string() == channel.clone())
+                    .unwrap();
+
+                if !write_to_config {
+                    config.hidden = settings.hidden;
+                    config.colors = slint_color_component_arr(settings.colors.clone());
+                    // Hack to force Slint to recreate the ChannelConfigRow components
+                    // since the Switch component sometimes ignores the model update.
+                    // It can be removed when Slint adds 2-way bindings to struct elements.
+                    for configs in [Vec::new(), configs] {
+                        let new_config_model = slint::ModelRc::new(slint::VecModel::from(configs));
+                        match chip.as_str() {
+                            "2A03" => main_window_weak.unwrap().set_config_2a03(new_config_model),
+                            "MMC5" => main_window_weak.unwrap().set_config_mmc5(new_config_model),
+                            "N163" => main_window_weak.unwrap().set_config_n163(new_config_model),
+                            "VRC6" => main_window_weak.unwrap().set_config_vrc6(new_config_model),
+                            "VRC7" => main_window_weak.unwrap().set_config_vrc7(new_config_model),
+                            "YM2149F" => main_window_weak.unwrap().set_config_s5b(new_config_model),
+                            "FDS" => main_window_weak.unwrap().set_config_fds(new_config_model),
+                            "APU" => main_window_weak.unwrap().set_config_apu(new_config_model),
+                            _ => continue
+                        }
+                    }
+                } else {
+                    settings.hidden = config.hidden;
+                    settings.colors = config.colors
+                        .as_any()
+                        .downcast_ref::<slint::VecModel<slint::ModelRc<i32>>>()
+                        .unwrap()
+                        .iter()
+                        .map(|color_model| {
+                            let mut component_iter = color_model
+                                .as_any()
+                                .downcast_ref::<slint::VecModel<i32>>()
+                                .unwrap()
+                                .iter();
+                            let r = component_iter.next().unwrap() as u8;
+                            let g = component_iter.next().unwrap() as u8;
+                            let b = component_iter.next().unwrap() as u8;
+
+                            drawing::Color::rgb(r, g, b)
+                        })
+                        .collect();
+                }
+            }
+
+            if write_to_config {
+                options.borrow_mut().channel_settings = channel_settings;
+            }
+            main_window_weak.unwrap().window().request_redraw();
+        });
+    }
+    main_window.invoke_update_channel_configs(false);
+
+    {
+        let main_window_weak = main_window.as_weak();
+        let options = options.clone();
+        main_window.on_import_config(move || {
+            match browse_for_config_import_dialog() {
+                Some(path) => {
+                    match get_channel_settings(Some(path.clone())) {
+                        Ok(channel_settings) => {
+                            options.borrow_mut().channel_settings = channel_settings;
+                            options.borrow_mut().config_import_path = Some(path);
+                            main_window_weak.unwrap().invoke_update_channel_configs(false);
+                        },
+                        Err(e) => display_error_dialog(&e)
+                    }
+                },
+                None => ()
+            }
+        });
     }
 
-    let mut options = Rc::new(RefCell::new(RendererOptions::default()));
+    {
+        let main_window_weak = main_window.as_weak();
+        let options = options.clone();
+        main_window.on_export_config(move || {
+            match browse_for_config_export_dialog() {
+                Some(path) => {
+                    main_window_weak.unwrap().invoke_update_channel_configs(true);
+
+                    let config_str = match export_channel_settings(
+                        options.borrow().config_import_path.clone(),
+                        options.borrow().channel_settings.clone()
+                    ) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            display_error_dialog(&e);
+                            return;
+                        }
+                    };
+
+                    match fs::write(&path, config_str) {
+                        Ok(()) => (),
+                        Err(e) => {
+                            display_error_dialog(e.to_string().as_str());
+                            return;
+                        }
+                    }
+
+                    options.borrow_mut().config_import_path = Some(path);
+                },
+                None => ()
+            }
+        });
+    }
+
+    {
+        let main_window_weak = main_window.as_weak();
+        let options = options.clone();
+        main_window.on_reset_config(move || {
+            options.borrow_mut().channel_settings = get_channel_settings(None).unwrap();
+            options.borrow_mut().config_import_path = None;
+            main_window_weak.unwrap().invoke_update_channel_configs(false);
+        });
+    }
 
     let (rt_handle, rt_tx) = {
         let main_window_weak = main_window.as_weak();
@@ -273,12 +414,12 @@ pub fn run() {
                     let current_video_duration = FormattedDuration(p.encoded_duration);
                     let expected_video_duration = match p.expected_duration {
                         Some(duration) => FormattedDuration(duration).to_string(),
-                        None => "?".to_string()
+                        None => "<?>".to_string()
                     };
                     // let elapsed_duration = FormattedDuration(p.elapsed_duration);
                     let eta_duration = match p.eta_duration {
-                        Some(duration) => FormattedDuration(duration).to_string(),
-                        None => "?".to_string()
+                        Some(duration) => HumanDuration(duration).to_string(),
+                        None => "unknown time".to_string()
                     };
                     // let song_position = match p.song_position {
                     //     Some(position) => position.to_string(),
@@ -289,12 +430,13 @@ pub fn run() {
                     //     None => "?".to_string()
                     // };
 
-                    let (progress, progress_title) = match p.expected_duration_frames {
-                        Some(exp_dur_frames) => {
-                            let progress = p.frame as f64 / exp_dur_frames as f64;
+                    let (progress, progress_title) = match (p.frame, p.expected_duration_frames) {
+                        (frame, Some(exp_dur_frames)) => {
+                            let progress = frame as f64 / exp_dur_frames as f64;
                             (progress, "Rendering".to_string())
                         },
-                        None => (0.0, "Initializing".to_string()),
+                        (0, None) => (0.0, "Initializing".to_string()),
+                        (_, None) => (0.0, "Rendering to loop point".to_string())
                     };
                     let progress_status = format!(
                         "{}%, {} FPS, encoded {}/{} ({}), {} remaining",
@@ -335,7 +477,7 @@ pub fn run() {
 
     {
         let main_window_weak = main_window.as_weak();
-        let mut options = options.clone();
+        let options = options.clone();
         main_window.on_browse_for_module(move || {
             match browse_for_module_dialog() {
                 Some(path) => {
@@ -363,7 +505,7 @@ pub fn run() {
 
     {
         let main_window_weak = main_window.as_weak();
-        let mut options = options.clone();
+        let options = options.clone();
         main_window.on_browse_for_background(move || {
             match browse_for_background_dialog() {
                 Some(path) => {
@@ -378,7 +520,7 @@ pub fn run() {
 
     {
         let main_window_weak = main_window.as_weak();
-        let mut options = options.clone();
+        let options = options.clone();
         main_window.on_update_formatted_duration(move || {
             let module_metadata = main_window_weak.unwrap().get_module_metadata();
             let extended_durations: Vec<i32> = module_metadata.extended_durations
@@ -426,7 +568,7 @@ pub fn run() {
 
     {
         let main_window_weak = main_window.as_weak();
-        let mut options = options.clone();
+        let options = options.clone();
         let rt_tx = rt_tx.clone();
         main_window.on_start_render(move || {
             let module_metadata = main_window_weak.unwrap().get_module_metadata();
@@ -436,8 +578,8 @@ pub fn run() {
                 display_error_dialog("No input file specified.");
                 return;
             }
-            if !input_path.ends_with(".nsf") {
-                display_error_dialog("Input file must have extension '.nsf'.");
+            if !input_path.to_lowercase().ends_with(".nsf") && !input_path.to_lowercase().ends_with(".nsfe") {
+                display_error_dialog("Input file must have extension '.nsf'/'.nsfe'.");
                 return;
             }
 
@@ -494,48 +636,7 @@ pub fn run() {
             options.borrow_mut().high_quality = main_window_weak.unwrap().get_hq_filtering();
             options.borrow_mut().multiplexing = main_window_weak.unwrap().get_multiplexing();
 
-            let mut channel_settings = get_default_channel_settings();
-            for ((chip, channel), settings) in channel_settings.iter_mut() {
-                let configs_model = match chip.as_str() {
-                    "2A03" => main_window_weak.unwrap().get_config_2a03(),
-                    "MMC5" => main_window_weak.unwrap().get_config_mmc5(),
-                    "N163" => main_window_weak.unwrap().get_config_n163(),
-                    "VRC6" => main_window_weak.unwrap().get_config_vrc6(),
-                    "VRC7" => main_window_weak.unwrap().get_config_vrc7(),
-                    "YM2149F" => main_window_weak.unwrap().get_config_s5b(),
-                    "FDS" => main_window_weak.unwrap().get_config_fds(),
-                    "APU" => main_window_weak.unwrap().get_config_apu(),
-                    _ => continue
-                };
-                let config = configs_model
-                    .as_any()
-                    .downcast_ref::<slint::VecModel<ChannelConfig>>()
-                    .unwrap()
-                    .iter()
-                    .find(|cfg| cfg.name.to_string() == channel.clone())
-                    .unwrap();
-
-                settings.hidden = config.hidden;
-                settings.colors = config.colors
-                    .as_any()
-                    .downcast_ref::<slint::VecModel<slint::ModelRc<i32>>>()
-                    .unwrap()
-                    .iter()
-                    .map(|color_model| {
-                        let mut component_iter = color_model
-                            .as_any()
-                            .downcast_ref::<slint::VecModel<i32>>()
-                            .unwrap()
-                            .iter();
-                        let r = component_iter.next().unwrap() as u8;
-                        let g = component_iter.next().unwrap() as u8;
-                        let b = component_iter.next().unwrap() as u8;
-
-                        drawing::Color::rgb(r, g, b)
-                    })
-                    .collect();
-            }
-            options.borrow_mut().channel_settings = channel_settings;
+            main_window_weak.unwrap().invoke_update_channel_configs(true);
 
             if main_window_weak.unwrap().get_background_path().is_empty() {
                 options.borrow_mut().video_options.background_path = None;

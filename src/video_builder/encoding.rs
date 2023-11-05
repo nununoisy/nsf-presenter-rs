@@ -1,9 +1,7 @@
 use std::iter::zip;
-use std::mem;
-use std::str::FromStr;
 use std::time::Duration;
-use ffmpeg_next::{Dictionary, format, frame, Packet};
-use crate::video_builder::ffmpeg_hacks::{ffmpeg_context_bytes_written, ffmpeg_sample_format_from_string};
+use ffmpeg_next::{Dictionary, frame, Packet};
+use crate::video_builder::ffmpeg_hacks::ffmpeg_context_bytes_written;
 use super::vb_unwrap::VideoBuilderUnwrap;
 use super::VideoBuilder;
 

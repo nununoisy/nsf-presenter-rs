@@ -41,4 +41,5 @@ pub trait Mapper: Send {
     fn nsf_set_track(&mut self, _track_index: u8) {}
     fn nsf_manual_mode(&mut self) {}
     fn audio_multiplexing(&mut self, _emulate: bool) {}
+    fn vrc7_set_patches(&mut self, _patches: &[u8]) {}
 }

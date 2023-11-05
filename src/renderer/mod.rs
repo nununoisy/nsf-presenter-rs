@@ -1,10 +1,11 @@
 pub mod options;
 
 use std::collections::VecDeque;
+use std::fs;
 use std::time::{Duration, Instant};
 use crate::emulator;
 use crate::video_builder;
-use options::{RendererOptions, FRAME_RATE, StopCondition};
+use options::{RendererOptions, StopCondition};
 use crate::emulator::SongPosition;
 
 pub struct Renderer {
@@ -24,7 +25,10 @@ impl Renderer {
     pub fn new(options: RendererOptions) -> Result<Self, String> {
         let mut emulator = emulator::Emulator::new();
 
-        emulator.init();
+        match options.config_import_path.clone() {
+            Some(p) => emulator.init(Some(fs::read_to_string(p).map_err(|e| e.to_string())?.as_str())),
+            None => emulator.init(None)
+        };
         emulator.open(&options.input_path)?;
         emulator.select_track(options.track_index);
         emulator.config_audio(options.video_options.sample_rate as _, 0x10000, options.famicom, options.high_quality, options.multiplexing);
@@ -44,7 +48,7 @@ impl Renderer {
             _ => ()
         }
 
-        let mut video = video_builder::VideoBuilder::new(video_options)?;
+        let video = video_builder::VideoBuilder::new(video_options)?;
 
         Ok(Self {
             options: options.clone(),
@@ -77,7 +81,7 @@ impl Renderer {
             Some(t) => (self.options.fadeout_length as f64 / t as f64) as i16,
             None => 1i16
         };
-        if let Some(audio_data) = self.emulator.get_audio_samples(1024, volume_divisor) {
+        if let Some(audio_data) = self.emulator.get_audio_samples(self.video.audio_frame_size(), volume_divisor) {
             self.video.push_audio_data(video_builder::as_u8_slice(&audio_data))?;
         }
 
@@ -106,6 +110,14 @@ impl Renderer {
         self.video.finish_encoding()?;
 
         Ok(())
+    }
+
+    pub fn current_frame(&self) -> u64 {
+        self.emulator.last_frame() as u64
+    }
+
+    pub fn elapsed(&self) -> Duration {
+        self.encode_start.elapsed()
     }
 
     fn next_expected_duration(&self) -> Option<usize> {
@@ -152,7 +164,7 @@ impl Renderer {
                         }
                     },
                     StopCondition::Frames(stop_duration) => {
-                        if self.cur_frame() >= stop_duration {
+                        if self.current_frame() >= stop_duration {
                             Some(self.options.fadeout_length)
                         } else {
                             None
@@ -162,7 +174,7 @@ impl Renderer {
                         let stop_duration = self.emulator.nsfe_duration()
                             .expect("No NSFe/NSF2 duration specified for this track");
 
-                        if self.cur_frame() >= stop_duration as u64 {
+                        if self.current_frame() >= stop_duration as u64 {
                             Some(self.options.fadeout_length)
                         } else {
                             None
@@ -173,12 +185,12 @@ impl Renderer {
         }
     }
 
-    pub fn cur_frame(&self) -> u64 {
-        self.emulator.last_frame() as u64
+    pub fn song_position(&self) -> Option<SongPosition> {
+        self.emulator.get_song_position()
     }
 
-    pub fn elapsed(&self) -> Duration {
-        self.encode_start.elapsed()
+    pub fn loop_count(&self) -> Option<usize> {
+        self.emulator.loop_count()
     }
 
     pub fn instantaneous_fps(&self) -> u32 {
@@ -219,8 +231,9 @@ impl Renderer {
     pub fn eta_duration(&self) -> Option<Duration> {
         match self.expected_duration {
             Some(expected_duration) => {
-                let remaining_frames = expected_duration - self.cur_frame() as usize;
-                let remaining_secs = remaining_frames as f64 / emulator::NES_NTSC_FRAMERATE;
+                let remaining_frames = expected_duration - self.current_frame() as usize;
+                let average_fps = u32::max(self.average_fps(), 1) as f64;
+                let remaining_secs = remaining_frames as f64 / average_fps;
                 Some(Duration::from_secs_f64(self.elapsed().as_secs_f64() + remaining_secs))
             },
             None => None
@@ -229,13 +242,5 @@ impl Renderer {
 
     pub fn emulator_progress(&self) -> Result<String, String> {
         self.emulator.progress()
-    }
-
-    pub fn song_position(&self) -> Option<SongPosition> {
-        self.emulator.get_song_position()
-    }
-
-    pub fn loop_count(&self) -> Option<usize> {
-        self.emulator.loop_count()
     }
 }

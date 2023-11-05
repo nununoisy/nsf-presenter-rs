@@ -2,16 +2,8 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time;
-use rusticnes_ui_common::drawing::{SimpleBuffer, blit, Color};
-use ffmpeg_next::format;
-use ffmpeg_next::software::scaling;
-use ffmpeg_next::util::frame;
-use ffmpeg_next::decoder;
-use ffmpeg_next::media::Type;
-use ffmpeg_next::codec;
-use ffmpeg_next::format::context::input::PacketIter;
+use ffmpeg_next::{format, software::scaling, util::frame, media::Type, codec};
 use super::VideoBackground;
-use crate::video_builder::VideoBuilderUnwrap;
 
 fn spawn_decoding_thread(frames: Arc<Mutex<VecDeque<frame::Video>>>, path: &str, w: u32, h: u32) -> JoinHandle<()> {
     let path = path.to_string();
@@ -85,8 +77,7 @@ pub struct MTVideoBackground {
     w: u32,
     h: u32,
     handle: JoinHandle<()>,
-    frames: Arc<Mutex<VecDeque<frame::Video>>>,
-    frame_idx: usize
+    frames: Arc<Mutex<VecDeque<frame::Video>>>
 }
 
 impl MTVideoBackground {
@@ -104,8 +95,7 @@ impl MTVideoBackground {
             w,
             h,
             handle,
-            frames,
-            frame_idx: 0
+            frames
         })
     }
 }
@@ -117,6 +107,7 @@ impl VideoBackground for MTVideoBackground {
             if let Some(frame) = guarded_frames.pop_front() {
                 break frame;
             } else {
+                drop(guarded_frames);
                 if self.handle.is_finished() {
                     let blank_frame = frame::Video::new(format::Pixel::RGBA, self.w, self.h);
                     break blank_frame

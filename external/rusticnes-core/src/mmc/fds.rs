@@ -1,6 +1,8 @@
+use std::collections::hash_map::DefaultHasher;
 use std::f32::consts::PI;
+use std::hash::Hasher;
 
-use apu::{AudioChannelState, FilterChain};
+use apu::{AudioChannelState, FilterChain, Timbre};
 use apu::PlaybackRate;
 use apu::Volume;
 use apu::RingBuffer;
@@ -394,7 +396,7 @@ impl AudioChannelState for FdsChannel {
     }
 
     fn playing(&self) -> bool {
-        true
+        !self.wave_table.wave_halt && self.wave_table.frequency > 0 && self.vol_envelope.out > 0
     }
 
     fn rate(&self) -> PlaybackRate {
@@ -404,5 +406,12 @@ impl AudioChannelState for FdsChannel {
 
     fn volume(&self) -> Option<Volume> {
         return Some(Volume::VolumeIndex{ index: self.current_volume as usize, max: 2048 });
+    }
+
+    fn timbre(&self) -> Option<Timbre> {
+        let mut hasher = DefaultHasher::new();
+        hasher.write(&self.wave_table.table);
+
+        Some(Timbre::PatchIndex { index: (hasher.finish() & 0xFF) as usize, max: 0xFF })
     }
 }

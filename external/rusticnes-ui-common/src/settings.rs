@@ -226,7 +226,7 @@ patchD = "hsv(258, 75%, 87%)"
 patchE = "hsv(192, 77%, 94%)"
 patchF = "hsv(110, 50%, 94%)"
 
-[piano_roll.settings.FDS.FDS]
+[piano_roll.settings.FDS.Wavetable]
 static = "rgb(66, 165, 245)"
 
 [piano_roll.settings.APU."Final Mix"]

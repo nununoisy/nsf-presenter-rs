@@ -393,7 +393,7 @@ pub fn default_channel_settings() -> HashMap<String, HashMap<String, ChannelSett
     vrc7_settings.insert("FM 6".to_string(), ChannelSettings{ hidden: false, colors: patch_colors.clone()});
 
     let mut fds_settings: HashMap<String, ChannelSettings> = HashMap::new();
-    fds_settings.insert("FDS".to_string(), ChannelSettings {
+    fds_settings.insert("Wavetable".to_string(), ChannelSettings {
         hidden: false,
         colors: vec!(Color::rgb(0x42, 0xA5, 0xF5))
     });
@@ -1255,28 +1255,28 @@ impl PianoRollWindow {
     }
 
     fn draw_channel_labels(&mut self, channel: &dyn AudioChannelState, x: u32, y: u32, width: u32, height: u32) {
-        let channel_color = self.channel_color(channel);
+        // let channel_color = self.channel_color(channel);
 
-        let transparent_color = Color::rgba(0, 0, 0, 0x80);
+        // let transparent_color = Color::rgba(0, 0, 0, 0x80);
 
         let chip_label = format!("{}", channel.chip());
-        let chip_color = Color::rgba(channel_color.r(), channel_color.g(), channel_color.b(), 0x30);
+        let chip_color = Color::rgba(0xFF, 0xFF, 0xFF, 0x33);
         let chip_x = x + 8;
         let chip_y = y + 4;
-        drawing::text(&mut self.canvas, &self.font, chip_x - 1, chip_y, &chip_label, transparent_color);
-        drawing::text(&mut self.canvas, &self.font, chip_x + 0, chip_y, &chip_label, transparent_color);
-        drawing::text(&mut self.canvas, &self.font, chip_x + 1, chip_y, &chip_label, transparent_color);
+        // drawing::text(&mut self.canvas, &self.font, chip_x - 1, chip_y, &chip_label, transparent_color);
+        // drawing::text(&mut self.canvas, &self.font, chip_x + 0, chip_y, &chip_label, transparent_color);
+        // drawing::text(&mut self.canvas, &self.font, chip_x + 1, chip_y, &chip_label, transparent_color);
         drawing::text(&mut self.canvas, &self.font, chip_x, chip_y, &chip_label, chip_color);
 
         let channel_label = format!("{}", channel.name());
-        let channel_color = Color::rgba(channel_color.r(), channel_color.g(), channel_color.b(), 0x30);
+        // let channel_color = Color::rgba(channel_color.r(), channel_color.g(), channel_color.b(), 0x30);
         let label_width_px = (channel_label.len() * 8) as u32;
         let channel_x = x + width - 8 - label_width_px;
         let channel_y = y + height - 4 - 8;
-        drawing::text(&mut self.canvas, &self.font, channel_x - 1, channel_y, &channel_label, transparent_color);
-        drawing::text(&mut self.canvas, &self.font, channel_x + 0, channel_y, &channel_label, transparent_color);
-        drawing::text(&mut self.canvas, &self.font, channel_x + 1, channel_y, &channel_label, transparent_color);
-        drawing::text(&mut self.canvas, &self.font, channel_x, channel_y, &channel_label, channel_color);
+        // drawing::text(&mut self.canvas, &self.font, channel_x - 1, channel_y, &channel_label, transparent_color);
+        // drawing::text(&mut self.canvas, &self.font, channel_x + 0, channel_y, &channel_label, transparent_color);
+        // drawing::text(&mut self.canvas, &self.font, channel_x + 1, channel_y, &channel_label, transparent_color);
+        drawing::text(&mut self.canvas, &self.font, channel_x, channel_y, &channel_label, chip_color);
     }
 
     fn draw_audio_surfboard_horiz(&mut self, runtime: &RuntimeState, x: u32, y: u32, width: u32, height: u32) {

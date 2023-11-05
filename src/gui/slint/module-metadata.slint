@@ -5,22 +5,22 @@ export struct ModuleMetadata {
 
     driver: string,
 
-    extended_metadata: bool,
-    loop_detection: bool,
-    extended_durations: [int],
+    extended-metadata: bool,
+    loop-detection: bool,
+    extended-durations: [int],
     chips: [string],
     tracks: [string]
 }
 
 export component ModuleMetadataView {
-    in property <ModuleMetadata> module_metadata: {
+    in property <ModuleMetadata> module-metadata: {
         title: "<?>",
         artist: "<?>",
         copyright: "<?>",
         driver: "<?>",
-        extended_metadata: false,
-        loop_detection: false,
-        extended_durations: [],
+        extended-metadata: false,
+        loop-detection: false,
+        extended-durations: [],
         chips: [],
         tracks: []
     };
@@ -30,15 +30,15 @@ export component ModuleMetadataView {
         spacing: 4px;
 
         Text {
-            text: module_metadata.title;
+            text: module-metadata.title;
             horizontal-alignment: center;
         }
         Text {
-            text: module_metadata.artist;
+            text: module-metadata.artist;
             horizontal-alignment: center;
         }
         Text {
-            text: module_metadata.copyright;
+            text: module-metadata.copyright;
             horizontal-alignment: center;
         }
         HorizontalLayout {
@@ -47,19 +47,19 @@ export component ModuleMetadataView {
 
             Text {
                 text: "NSFe/NSF2 metadata";
-                color: module_metadata.extended_metadata
+                color: module-metadata.extended-metadata
                     ? green
                     : red;
             }
             Text {
                 text: "Loop detection";
-                color: module_metadata.loop_detection
+                color: module-metadata.loop-detection
                     ? green
                     : red;
             }
             Text {
                 text: "NSFe/NSF2 duration";
-                color: module_metadata.extended_durations.length > 0
+                color: module-metadata.extended-durations.length > 0
                     ? green
                     : red;
             }
@@ -68,7 +68,7 @@ export component ModuleMetadataView {
             alignment: center;
             spacing: 12px;
 
-            for chip in module_metadata.chips : Rectangle {
+            for chip in module-metadata.chips : Rectangle {
                 background: chip == "2A03" ? #dddddd :
                             chip == "FDS" ? #0066ff :
                             chip == "N163" ? #ff0000 :

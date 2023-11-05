@@ -3,21 +3,35 @@ use std::collections::vec_deque::VecDeque;
 use std::str;
 use crate::emulator::NES_NTSC_FRAMERATE;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum NsfeChunk {
     Playlist(Vec<usize>),
+    SoundEffects(Vec<usize>),
     Time(Vec<i32>),
     Fadeout(Vec<i32>),
     TrackLabels(Vec<String>),
     TrackAuthors(Vec<String>),
-    Author(String, String, String, String),
-    Text(String)
+    Author { title: String, artist: String, copyright: String, ripper: String },
+    Text(String),
+    Info(Vec<u8>),
+    Data(Vec<u8>),
+    BankInit(Vec<u8>),
+    NSF2Flags(u8),
+    Rate(Vec<u16>),
+    VRC7 { use_ym2413: bool, patches: Option<[u8; 8 * 15]>, rhythm_patches: Option<[u8; 8 * 3]> }
+}
+
+fn chunk_data_as_u16_vec(chunk_data: &[u8]) -> Vec<u16> {
+    chunk_data
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes(c.try_into().unwrap()))  // error should never occur
+        .collect()
 }
 
 fn chunk_data_as_i32_vec(chunk_data: &[u8]) -> Vec<i32> {
     chunk_data
         .chunks_exact(4)
-        .map(|c| i32::from_le_bytes(c.try_into().expect("bad i32 array")))
+        .map(|c| i32::from_le_bytes(c.try_into().unwrap()))  // error should never occur
         .collect()
 }
 
@@ -41,16 +55,25 @@ fn chunk_data_as_string_vec(chunk_data: &[u8]) -> Vec<String> {
 
 const DEFAULT_FIELD: &str = "<?>";
 
-fn parse_nsfe_metadata(data: &[u8]) -> Result<Vec<NsfeChunk>, String> {
+fn extract_fourcc_chunks(data: &[u8]) -> Result<Vec<([u8; 4], Vec<u8>)>, String> {
     let mut data_deque: VecDeque<u8> = VecDeque::from_iter(data.into_iter().cloned());
-    let mut result: Vec<NsfeChunk> = Vec::new();
+    let mut result: Vec<([u8; 4], Vec<u8>)> = Vec::new();
 
-    println!("Parsing NSFe chunks:");
     while !data_deque.is_empty() {
         let chunk_len = u32::from_le_bytes(data_deque.drain(0..4).collect::<Vec<_>>().try_into().unwrap());
         let four_cc = data_deque.drain(0..4).collect::<Vec<_>>().try_into().unwrap();
         let chunk_data: Vec<u8> = data_deque.drain(0..chunk_len as usize).collect();
 
+        result.push((four_cc, chunk_data));
+    }
+
+    Ok(result)
+}
+
+fn parse_nsfe_metadata(data: &[u8]) -> Result<Vec<NsfeChunk>, String> {
+    let mut result: Vec<NsfeChunk> = Vec::new();
+
+    for (four_cc, chunk_data) in extract_fourcc_chunks(data)? {
         let chunk = match &four_cc {
             b"plst" => {
                 let playlist: Vec<usize> = chunk_data
@@ -58,6 +81,13 @@ fn parse_nsfe_metadata(data: &[u8]) -> Result<Vec<NsfeChunk>, String> {
                     .map(|t| 1 + t as usize)
                     .collect();
                 NsfeChunk::Playlist(playlist)
+            },
+            b"psfx" => {
+                let sound_effects: Vec<usize> = chunk_data
+                    .into_iter()
+                    .map(|t| 1 + t as usize)
+                    .collect();
+                NsfeChunk::SoundEffects(sound_effects)
             },
             b"time" => NsfeChunk::Time(chunk_data_as_i32_vec(&chunk_data)),
             b"fade" => NsfeChunk::Fadeout(chunk_data_as_i32_vec(&chunk_data)),
@@ -71,17 +101,32 @@ fn parse_nsfe_metadata(data: &[u8]) -> Result<Vec<NsfeChunk>, String> {
                 let copyright = strings.get(2).unwrap_or(&DEFAULT_FIELD.to_string()).clone();
                 let ripper = strings.get(3).unwrap_or(&DEFAULT_FIELD.to_string()).clone();
 
-                NsfeChunk::Author(title, artist, copyright, ripper)
+                NsfeChunk::Author { title, artist, copyright, ripper }
             },
             b"text" => NsfeChunk::Text(chunk_data_as_string_vec(&chunk_data).get(0).unwrap_or(&DEFAULT_FIELD.to_string()).clone()),
+            b"INFO" => NsfeChunk::Info(chunk_data),
+            b"DATA" => NsfeChunk::Data(chunk_data),
+            b"BANK" => NsfeChunk::BankInit(chunk_data),
+            b"NSF2" => NsfeChunk::NSF2Flags(chunk_data.get(0).cloned().unwrap_or_default()),
+            b"RATE" => NsfeChunk::Rate(chunk_data_as_u16_vec(&chunk_data)),
+            b"VRC7" => {
+                let use_ym2413 = (chunk_data.get(0).cloned().ok_or("VRC7 section missing YM2413 flag".to_string())?) != 0;
+                let (patches, rhythm_patches) = match (use_ym2413, chunk_data.len()) {
+                    (_, 1) => (None, None),
+                    (_, 129) => (Some(chunk_data[9..129].try_into().unwrap()), None),
+                    (true, 153) => (Some(chunk_data[9..129].try_into().unwrap()), Some(chunk_data[129..153].try_into().unwrap())),
+                    (false, 153) => return Err("VRC7 section specifies rhythm instruments in non-YM2413 mode".to_string()),
+                    _ => return Err(format!("VRC7 section has invalid length {}", chunk_data.len()))
+                };
+
+                NsfeChunk::VRC7 { use_ym2413, patches, rhythm_patches }
+            }
             b"NEND" => break,
             unk_four_cc => {
-                println!("  {} {} <?>", str::from_utf8(unk_four_cc).unwrap(), chunk_len);
+                println!("Warning: unknown fourcc {}", str::from_utf8(unk_four_cc).unwrap());
                 continue;
             }
         };
-
-        println!("  {} {} {:?}", str::from_utf8(&four_cc).unwrap(), chunk_len, chunk);
 
         result.push(chunk);
     }
@@ -116,7 +161,8 @@ pub struct NsfeMetadata {
     artist: Option<String>,
     copyright: Option<String>,
     ripper: Option<String>,
-    text: Option<String>
+    text: Option<String>,
+    vrc7_patches: Option<[u8; 8 * 15]>
 }
 
 macro_rules! track {
@@ -135,7 +181,8 @@ impl NsfeMetadata {
             artist: None,
             copyright: None,
             ripper: None,
-            text: None
+            text: None,
+            vrc7_patches: None
         };
 
         for chunk in &metadata.chunks {
@@ -161,7 +208,7 @@ impl NsfeMetadata {
                         track!(metadata, i+1).author = Some(a.clone());
                     }
                 },
-                NsfeChunk::Author(title, artist, copyright, ripper) => {
+                NsfeChunk::Author { title, artist, copyright, ripper } => {
                     metadata.title = Some(title.to_owned());
                     metadata.artist = Some(artist.to_owned());
                     metadata.copyright = Some(copyright.to_owned());
@@ -169,7 +216,14 @@ impl NsfeMetadata {
                 }
                 NsfeChunk::Text(text) => {
                     metadata.text = Some(text.to_owned());
+                },
+                NsfeChunk::VRC7 { use_ym2413, patches, .. } => {
+                    metadata.vrc7_patches = patches.to_owned();
+                    if *use_ym2413 {
+                        println!("Warning: YM2413 mode currently not supported");
+                    }
                 }
+                _ => ()
             }
         };
 
@@ -211,4 +265,99 @@ impl NsfeMetadata {
     pub fn track_fadeout(&self, index: usize) -> Option<usize> {
         self.track(index)?.fadeout
     }
+
+    pub fn vrc7_patches(&self) -> Option<[u8; 8 * 15]> {
+        self.vrc7_patches.clone()
+    }
+}
+
+pub fn nsfe_to_nsf2(data: &[u8]) -> Result<Vec<u8>, String> {
+    if &data[0..4] != b"NSFE" {
+        return Err("Malformed header".to_string());
+    }
+
+    let mut result: Vec<u8> = Vec::new();
+    let chunks = extract_fourcc_chunks(&data[4..])?;
+    let parsed_chunks = parse_nsfe_metadata(&data[4..])?;
+
+    let info = parsed_chunks.iter().find_map(|c| match c {
+        NsfeChunk::Info(i) => Some(i.clone()),
+        _ => None
+    }).ok_or("Missing INFO chunk".to_string())?;
+
+    let rom_data = parsed_chunks.iter().find_map(|c| match c {
+        NsfeChunk::Data(i) => Some(i.clone()),
+        _ => None
+    }).ok_or("Missing DATA chunk".to_string())?;
+
+    let mut bank_init = parsed_chunks.iter().find_map(|c| match c {
+        NsfeChunk::BankInit(i) => Some(i.clone()),
+        _ => None
+    }).unwrap_or_default();
+    bank_init.resize(8, 0);
+    
+    let (title, artist, copyright) = parsed_chunks.iter().find_map(|c| match c {
+        NsfeChunk::Author { title, artist, copyright, .. } => Some((
+            title.clone(),
+            artist.clone(),
+            copyright.clone()
+        )),
+        _ => None
+    }).unwrap_or((DEFAULT_FIELD.to_string(), DEFAULT_FIELD.to_string(), DEFAULT_FIELD.to_string()));
+
+    let rates = parsed_chunks.iter().find_map(|c| match c {
+        NsfeChunk::Rate(i) => Some(i.clone()),
+        _ => None
+    }).unwrap_or_default();
+
+    let nsf2_flags = parsed_chunks.iter().find_map(|c| match c {
+        NsfeChunk::NSF2Flags(i) => Some(i.clone()),
+        _ => None
+    }).unwrap_or_default();
+
+    result.extend_from_slice(b"NESM\x1A");  // NSF magic
+    result.push(2);  // version
+    result.push(info[8]);  // total songs
+    result.push(info.get(9).cloned().unwrap_or_default() + 1);  // starting song
+    result.extend_from_slice(&info[0..6]);  // load/init/play addresses
+
+    macro_rules! formatted_metadata_field {
+        ($f: tt) => {{
+            let mut b = $f.into_bytes();
+            b.truncate(0x1F);
+            b.resize(0x20, 0);
+            b
+        }};
+    }
+    result.extend(formatted_metadata_field!(title));  // module metadata
+    result.extend(formatted_metadata_field!(artist));
+    result.extend(formatted_metadata_field!(copyright));
+
+    result.extend_from_slice(&rates.get(0).cloned().unwrap_or(16_639).to_le_bytes());  // NTSC rate
+    result.extend(bank_init);  // bankswitch init values
+    result.extend_from_slice(&rates.get(1).cloned().unwrap_or(19_997).to_le_bytes());  // PAL rate
+    result.push(info[6]);  // PAL/NTSC bits
+    result.push(info[7]);  // Expansion audio bits
+    result.push(nsf2_flags | 0x80);  // NSF2 flags
+    result.extend_from_slice(&(rom_data.len() as u32).to_le_bytes()[0..3]);  // NSF2 program length
+
+    result.extend(rom_data);  // ROM data
+
+    // NSF2 extended metadata
+    for (four_cc, chunk_data) in chunks {
+        // Ignore NSFe specific chunks
+        match &four_cc {
+            b"INFO" => continue,
+            b"DATA" => continue,
+            b"BANK" => continue,
+            b"NSF2" => continue,
+            _ => ()
+        }
+
+        result.extend_from_slice(&(chunk_data.len() as u32).to_le_bytes());
+        result.extend_from_slice(&four_cc);
+        result.extend(chunk_data);
+    }
+
+    Ok(result)
 }
