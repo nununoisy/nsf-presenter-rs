@@ -274,7 +274,7 @@ export component MainWindow inherits Window {
             }
             SpinBox {
                 value <=> output-width;
-                minimum: 960;
+                minimum: 0;
                 maximum: 7680;
                 enabled: !rendering;
             }
@@ -284,7 +284,7 @@ export component MainWindow inherits Window {
             }
             SpinBox {
                 value <=> output-height;
-                minimum: 540;
+                minimum: 0;
                 maximum: 4320;
                 enabled: !rendering;
             }

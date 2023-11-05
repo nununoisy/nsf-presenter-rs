@@ -630,6 +630,10 @@ pub fn run() {
 
             let ow = main_window_weak.unwrap().get_output_width() as u32;
             let oh = main_window_weak.unwrap().get_output_height() as u32;
+            if ow < 960 || oh < 540 {
+                display_error_dialog("Output resolution must be at least 960x540.");
+                return;
+            }
             options.borrow_mut().video_options.resolution_out = (ow, oh);
 
             options.borrow_mut().famicom = main_window_weak.unwrap().get_famicom_mode();
