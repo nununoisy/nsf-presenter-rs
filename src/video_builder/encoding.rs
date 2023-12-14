@@ -1,9 +1,34 @@
+use anyhow::{Result, ensure};
 use std::iter::zip;
 use std::time::Duration;
 use ffmpeg_next::{Dictionary, frame, Packet};
 use crate::video_builder::ffmpeg_hacks::ffmpeg_context_bytes_written;
 use super::vb_unwrap::VideoBuilderUnwrap;
 use super::VideoBuilder;
+
+fn copy_data_to_frame(frame: &mut frame::Video, data: &[u8]) -> Result<()> {
+    if data.len() == frame.data(0).len() {
+        frame.data_mut(0).copy_from_slice(data);
+        return Ok(());
+    }
+
+    let in_h = frame.height() as usize;
+    let in_w = data.len() / in_h;
+    let out_w = frame.stride(0);
+
+    ensure!(in_w < out_w, "Output stride too small");
+
+    let in_data = data.chunks_exact(in_w);
+    ensure!(in_data.remainder().len() == 0 && in_data.len() == in_h, "Improperly sized input video data");
+    let out_data = frame.data_mut(0).chunks_exact_mut(out_w);
+
+    for (in_line, out_line) in zip(in_data, out_data) {
+        out_line[0..in_w].copy_from_slice(in_line);
+        out_line[in_w..out_w].fill(0);
+    }
+
+    Ok(())
+}
 
 fn fast_background_blit(fg: &mut frame::Video, bg: &frame::Video) {
     const RB_MASK: u32 = 0xFF00FF;
@@ -15,22 +40,21 @@ fn fast_background_blit(fg: &mut frame::Video, bg: &frame::Video) {
         let pre_blit_bg_arr = [bg_arr[0] / 2, bg_arr[1] / 2, bg_arr[2] / 2, 255];
         let bg_color = u32::from_le_bytes(pre_blit_bg_arr) & (RB_MASK | G_MASK);
 
-        let mut rb = bg_color & RB_MASK;
-        let mut g = bg_color & G_MASK;
         let a = fg_arr[3] as u32;
+        let rb1 = (0x100 - a).wrapping_mul(bg_color & RB_MASK) >> 8;
+        let rb2 = a.wrapping_mul(fg_color & RB_MASK) >> 8;
+        let g1 = (0x100 - a).wrapping_mul(bg_color & G_MASK) >> 8;
+        let g2 = a.wrapping_mul(fg_color & G_MASK) >> 8;
 
-        rb += (((fg_color & RB_MASK) - rb) * a) >> 8;
-        g += (((fg_color & G_MASK) - g) * a) >> 8;
-
-        let o_color = (a << 24) | (rb & RB_MASK) | (g & G_MASK);
+        let o_color = (a << 24) | ((rb1 | rb2) & RB_MASK) | ((g1 | g2) & G_MASK);
         fg_arr.copy_from_slice(&o_color.to_le_bytes());
     }
 }
 
 impl VideoBuilder {
-    fn push_video_data_no_bg(&mut self, video: &[u8]) -> Result<(), String> {
+    fn push_video_data_no_bg(&mut self, video: &[u8]) -> Result<()> {
         let mut input_frame = frame::Video::new(self.v_swc_ctx.input().format, self.v_swc_ctx.input().width, self.v_swc_ctx.input().height);
-        input_frame.data_mut(0).copy_from_slice(video);
+        copy_data_to_frame(&mut input_frame, video)?;
 
         let mut resize_frame = frame::Video::new(self.v_swc_ctx.output().format, self.v_swc_ctx.output().width, self.v_swc_ctx.output().height);
         self.v_swc_ctx.run(&input_frame, &mut resize_frame).vb_unwrap()?;
@@ -43,9 +67,9 @@ impl VideoBuilder {
         Ok(())
     }
 
-    fn push_video_data_bg(&mut self, video: &[u8]) -> Result<(), String> {
+    fn push_video_data_bg(&mut self, video: &[u8]) -> Result<()> {
         let mut input_frame = frame::Video::new(self.v_sws_ctx.input().format, self.v_sws_ctx.input().width, self.v_sws_ctx.input().height);
-        input_frame.data_mut(0).copy_from_slice(video);
+        copy_data_to_frame(&mut input_frame, video)?;
 
         let mut resize_frame = frame::Video::new(self.v_sws_ctx.output().format, self.v_sws_ctx.output().width, self.v_sws_ctx.output().height);
         self.v_sws_ctx.run(&input_frame, &mut resize_frame).vb_unwrap()?;
@@ -61,7 +85,7 @@ impl VideoBuilder {
         Ok(())
     }
 
-    pub fn push_video_data(&mut self, video: &[u8]) -> Result<(), String> {
+    pub fn push_video_data(&mut self, video: &[u8]) -> Result<()> {
         if self.options.background_path.is_some() {
             self.push_video_data_bg(video)
         } else {
@@ -69,13 +93,13 @@ impl VideoBuilder {
         }
     }
 
-    pub fn push_audio_data(&mut self, audio: &[u8]) -> Result<(), String> {
+    pub fn push_audio_data(&mut self, audio: &[u8]) -> Result<()> {
         let bytes_per_sample = self.a_swr_ctx.input().channel_layout.channels() as usize * self.a_swr_ctx.input().format.bytes();
         let samples = audio.len() / bytes_per_sample;
 
         let mut input_frame = frame::Audio::new(self.a_swr_ctx.input().format, samples, self.a_swr_ctx.input().channel_layout);
         input_frame.set_rate(self.options.sample_rate as _);
-        input_frame.data_mut(0).copy_from_slice(audio);
+        input_frame.data_mut(0)[..audio.len()].copy_from_slice(audio);
 
         let mut output_frame = frame::Audio::new(self.a_swr_ctx.output().format, samples, self.a_swr_ctx.output().channel_layout);
         output_frame.set_rate(self.options.sample_rate as _);
@@ -86,7 +110,7 @@ impl VideoBuilder {
         Ok(())
     }
 
-    fn send_video_to_encoder(&mut self) -> Result<(), String> {
+    fn send_video_to_encoder(&mut self) -> Result<()> {
         if let Some(mut frame) = self.v_frame_buf.pop_front() {
             frame.set_pts(Some(self.v_pts));
             self.v_encoder.send_frame(&frame).vb_unwrap()?;
@@ -97,7 +121,7 @@ impl VideoBuilder {
         Ok(())
     }
 
-    fn mux_video_frame(&mut self, packet: &mut Packet) -> Result<bool, String> {
+    fn mux_video_frame(&mut self, packet: &mut Packet) -> Result<bool> {
         if self.v_encoder.receive_packet(packet).is_ok() {
             let out_time_base = self.out_ctx.stream(self.v_stream_idx)
                 .unwrap()
@@ -115,7 +139,7 @@ impl VideoBuilder {
         }
     }
 
-    fn send_audio_to_encoder(&mut self) -> Result<(), String> {
+    fn send_audio_to_encoder(&mut self) -> Result<()> {
         if let Some(mut frame) = self.a_frame_buf.pop_front() {
             frame.set_pts(Some(self.a_pts));
             self.a_encoder.send_frame(&frame).vb_unwrap()?;
@@ -126,7 +150,7 @@ impl VideoBuilder {
         Ok(())
     }
 
-    fn mux_audio_frame(&mut self, packet: &mut Packet) -> Result<bool, String> {
+    fn mux_audio_frame(&mut self, packet: &mut Packet) -> Result<bool> {
         if self.a_encoder.receive_packet(packet).is_ok() {
             let out_time_base = self.out_ctx.stream(self.a_stream_idx)
                 .unwrap()
@@ -144,7 +168,7 @@ impl VideoBuilder {
         }
     }
 
-    pub fn start_encoding(&mut self) -> Result<(), String> {
+    pub fn start_encoding(&mut self) -> Result<()> {
         let mut opts = Dictionary::new();
         println!("{}", self.out_ctx.format().name());
         match self.out_ctx.format().name() {
@@ -157,7 +181,7 @@ impl VideoBuilder {
         Ok(())
     }
 
-    pub fn step_encoding(&mut self) -> Result<(), String> {
+    pub fn step_encoding(&mut self) -> Result<()> {
         let mut packet = Packet::empty();
 
         loop {
@@ -179,7 +203,7 @@ impl VideoBuilder {
         Ok(())
     }
 
-    pub fn finish_encoding(&mut self) -> Result<(), String> {
+    pub fn finish_encoding(&mut self) -> Result<()> {
         self.v_encoder.send_eof().vb_unwrap()?;
         self.a_encoder.send_eof().vb_unwrap()?;
 

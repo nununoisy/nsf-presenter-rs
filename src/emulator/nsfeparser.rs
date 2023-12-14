@@ -1,6 +1,8 @@
+use anyhow::{Result, ensure, bail, Context};
 use std::collections::HashMap;
 use std::collections::vec_deque::VecDeque;
 use std::str;
+use std::mem;
 use crate::emulator::NES_NTSC_FRAMERATE;
 
 #[derive(Clone, Debug)]
@@ -21,48 +23,61 @@ pub enum NsfeChunk {
     VRC7 { use_ym2413: bool, patches: Option<[u8; 8 * 15]>, rhythm_patches: Option<[u8; 8 * 3]> }
 }
 
-fn chunk_data_as_u16_vec(chunk_data: &[u8]) -> Vec<u16> {
-    chunk_data
+fn chunk_data_as_u16_vec(chunk_data: &[u8]) -> Result<Vec<u16>> {
+    ensure!((chunk_data.len() % mem::size_of::<u16>()) == 0, "NSFe u16 array has invalid length");
+
+    Ok(chunk_data
         .chunks_exact(2)
         .map(|c| u16::from_le_bytes(c.try_into().unwrap()))  // error should never occur
-        .collect()
+        .collect())
 }
 
-fn chunk_data_as_i32_vec(chunk_data: &[u8]) -> Vec<i32> {
-    chunk_data
+fn chunk_data_as_i32_vec(chunk_data: &[u8]) -> Result<Vec<i32>> {
+    ensure!((chunk_data.len() % mem::size_of::<i32>()) == 0, "NSFe i32 array has invalid length");
+
+    Ok(chunk_data
         .chunks_exact(4)
         .map(|c| i32::from_le_bytes(c.try_into().unwrap()))  // error should never occur
-        .collect()
+        .collect())
 }
 
-fn chunk_data_as_string_vec(chunk_data: &[u8]) -> Vec<String> {
+fn chunk_data_as_string_vec(chunk_data: &[u8]) -> Result<Vec<String>> {
+    // chunk_data
+    //     .into_iter()
+    //     .cloned()
+    //     .fold(Vec::new(), |mut acc, cur| {
+    //         if cur == 0 || acc.is_empty() {
+    //             acc.push(Vec::new());
+    //         }
+    //         if cur != 0 {
+    //             acc.last_mut().unwrap().push(cur);
+    //         }
+    //         acc
+    //     })
+    //     .into_iter()
+    //     .map(|s| str::from_utf8(&s)?.to_string())
+    //     .collect()
+
     chunk_data
-        .into_iter()
-        .cloned()
-        .fold(Vec::new(), |mut acc, cur| {
-            if cur == 0 || acc.is_empty() {
-                acc.push(Vec::new());
-            }
-            if cur != 0 {
-                acc.last_mut().unwrap().push(cur);
-            }
-            acc
-        })
-        .into_iter()
-        .map(|s| str::from_utf8(&s).unwrap().to_string())
+        .split(|&b| b == 0)
+        .map(|s| Ok(str::from_utf8(s).context("NSFe string array contains invalid data")?.to_string()))
         .collect()
 }
 
 const DEFAULT_FIELD: &str = "<?>";
 
-fn extract_fourcc_chunks(data: &[u8]) -> Result<Vec<([u8; 4], Vec<u8>)>, String> {
+fn extract_fourcc_chunks(data: &[u8]) -> Result<Vec<([u8; 4], Vec<u8>)>> {
     let mut data_deque: VecDeque<u8> = VecDeque::from_iter(data.into_iter().cloned());
     let mut result: Vec<([u8; 4], Vec<u8>)> = Vec::new();
 
     while !data_deque.is_empty() {
-        let chunk_len = u32::from_le_bytes(data_deque.drain(0..4).collect::<Vec<_>>().try_into().unwrap());
+        ensure!(data_deque.len() >= 8, "Not enough data left for next NSFe chunk!");
+
+        let chunk_len = u32::from_le_bytes(data_deque.drain(0..4).collect::<Vec<_>>().try_into().unwrap()) as usize;
         let four_cc = data_deque.drain(0..4).collect::<Vec<_>>().try_into().unwrap();
-        let chunk_data: Vec<u8> = data_deque.drain(0..chunk_len as usize).collect();
+        let chunk_data: Vec<u8> = data_deque.drain(0..chunk_len).collect();
+
+        ensure!(chunk_data.len() == chunk_len, "NSFe chunk is too short");
 
         result.push((four_cc, chunk_data));
     }
@@ -70,7 +85,7 @@ fn extract_fourcc_chunks(data: &[u8]) -> Result<Vec<([u8; 4], Vec<u8>)>, String>
     Ok(result)
 }
 
-fn parse_nsfe_metadata(data: &[u8]) -> Result<Vec<NsfeChunk>, String> {
+fn parse_nsfe_metadata(data: &[u8]) -> Result<Vec<NsfeChunk>> {
     let mut result: Vec<NsfeChunk> = Vec::new();
 
     for (four_cc, chunk_data) in extract_fourcc_chunks(data)? {
@@ -89,12 +104,12 @@ fn parse_nsfe_metadata(data: &[u8]) -> Result<Vec<NsfeChunk>, String> {
                     .collect();
                 NsfeChunk::SoundEffects(sound_effects)
             },
-            b"time" => NsfeChunk::Time(chunk_data_as_i32_vec(&chunk_data)),
-            b"fade" => NsfeChunk::Fadeout(chunk_data_as_i32_vec(&chunk_data)),
-            b"tlbl" => NsfeChunk::TrackLabels(chunk_data_as_string_vec(&chunk_data)),
-            b"taut" => NsfeChunk::TrackAuthors(chunk_data_as_string_vec(&chunk_data)),
+            b"time" => NsfeChunk::Time(chunk_data_as_i32_vec(&chunk_data)?),
+            b"fade" => NsfeChunk::Fadeout(chunk_data_as_i32_vec(&chunk_data)?),
+            b"tlbl" => NsfeChunk::TrackLabels(chunk_data_as_string_vec(&chunk_data)?),
+            b"taut" => NsfeChunk::TrackAuthors(chunk_data_as_string_vec(&chunk_data)?),
             b"auth" => {
-                let strings = chunk_data_as_string_vec(&chunk_data);
+                let strings = chunk_data_as_string_vec(&chunk_data)?;
 
                 let title = strings.get(0).unwrap_or(&DEFAULT_FIELD.to_string()).clone();
                 let artist = strings.get(1).unwrap_or(&DEFAULT_FIELD.to_string()).clone();
@@ -103,20 +118,20 @@ fn parse_nsfe_metadata(data: &[u8]) -> Result<Vec<NsfeChunk>, String> {
 
                 NsfeChunk::Author { title, artist, copyright, ripper }
             },
-            b"text" => NsfeChunk::Text(chunk_data_as_string_vec(&chunk_data).get(0).unwrap_or(&DEFAULT_FIELD.to_string()).clone()),
+            b"text" => NsfeChunk::Text(chunk_data_as_string_vec(&chunk_data)?.get(0).unwrap_or(&DEFAULT_FIELD.to_string()).clone()),
             b"INFO" => NsfeChunk::Info(chunk_data),
             b"DATA" => NsfeChunk::Data(chunk_data),
             b"BANK" => NsfeChunk::BankInit(chunk_data),
             b"NSF2" => NsfeChunk::NSF2Flags(chunk_data.get(0).cloned().unwrap_or_default()),
-            b"RATE" => NsfeChunk::Rate(chunk_data_as_u16_vec(&chunk_data)),
+            b"RATE" => NsfeChunk::Rate(chunk_data_as_u16_vec(&chunk_data)?),
             b"VRC7" => {
-                let use_ym2413 = (chunk_data.get(0).cloned().ok_or("VRC7 section missing YM2413 flag".to_string())?) != 0;
+                let use_ym2413 = (chunk_data.get(0).cloned().context("VRC7 section missing YM2413 flag")?) != 0;
                 let (patches, rhythm_patches) = match (use_ym2413, chunk_data.len()) {
                     (_, 1) => (None, None),
-                    (_, 129) => (Some(chunk_data[9..129].try_into().unwrap()), None),
-                    (true, 153) => (Some(chunk_data[9..129].try_into().unwrap()), Some(chunk_data[129..153].try_into().unwrap())),
-                    (false, 153) => return Err("VRC7 section specifies rhythm instruments in non-YM2413 mode".to_string()),
-                    _ => return Err(format!("VRC7 section has invalid length {}", chunk_data.len()))
+                    (_, 129) => (Some(chunk_data[9..129].try_into()?), None),
+                    (true, 153) => (Some(chunk_data[9..129].try_into()?), Some(chunk_data[129..153].try_into()?)),
+                    (false, 153) => bail!("VRC7 section specifies rhythm instruments in non-YM2413 mode"),
+                    _ => bail!("VRC7 section has invalid length {}", chunk_data.len())
                 };
 
                 NsfeChunk::VRC7 { use_ym2413, patches, rhythm_patches }
@@ -172,7 +187,7 @@ macro_rules! track {
 }
 
 impl NsfeMetadata {
-    pub fn from(data: &[u8]) -> Result<Self, String> {
+    pub fn from(data: &[u8]) -> Result<Self> {
         let mut metadata = Self {
             chunks: parse_nsfe_metadata(data)?,
             tracks: HashMap::new(),
@@ -271,10 +286,8 @@ impl NsfeMetadata {
     }
 }
 
-pub fn nsfe_to_nsf2(data: &[u8]) -> Result<Vec<u8>, String> {
-    if &data[0..4] != b"NSFE" {
-        return Err("Malformed header".to_string());
-    }
+pub fn nsfe_to_nsf2(data: &[u8]) -> Result<Vec<u8>> {
+    ensure!(&data[0..4] == b"NSFE", "Malformed header");
 
     let mut result: Vec<u8> = Vec::new();
     let chunks = extract_fourcc_chunks(&data[4..])?;
@@ -283,12 +296,12 @@ pub fn nsfe_to_nsf2(data: &[u8]) -> Result<Vec<u8>, String> {
     let info = parsed_chunks.iter().find_map(|c| match c {
         NsfeChunk::Info(i) => Some(i.clone()),
         _ => None
-    }).ok_or("Missing INFO chunk".to_string())?;
+    }).context("Missing INFO chunk")?;
 
     let rom_data = parsed_chunks.iter().find_map(|c| match c {
         NsfeChunk::Data(i) => Some(i.clone()),
         _ => None
-    }).ok_or("Missing DATA chunk".to_string())?;
+    }).context("Missing DATA chunk")?;
 
     let mut bank_init = parsed_chunks.iter().find_map(|c| match c {
         NsfeChunk::BankInit(i) => Some(i.clone()),

@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="nsf-presenter-icon-xl.png" />
+    <img src="assets/nsf-presenter-icon-xl.png" />
 </p>
 
 # NSFPresenter
@@ -8,7 +8,10 @@ NSFPresenter is a tool I wrote to generate visualizations of my
 [Dn-FamiTracker][dn-ft] covers, based on [RusticNES][rusticnes],
 [FFmpeg][ffmpeg], and [Slint][slint].
 You can see it in action on [my YouTube channel][yt]. I also wrote it
-to learn how to write Rust (so please forgive the code quality).
+to learn how to write Rust.
+
+![Slint logo](assets/MadeWithSlint-logo-light.svg#gh-light-mode-only)
+![Slint logo](assets/MadeWithSlint-logo-dark.svg#gh-dark-mode-only)
 
 ## Functionality
 
@@ -23,7 +26,7 @@ codecs is planned.
 
 ## Features
 
-- Supports NSF and NSF2 modules.
+- Supports NSF, NSFe, and NSF2 modules.
 - Supports all NSF expansion audio mappers.
 - Customized version of RusticNES:
   - Added FDS audio support.
@@ -40,10 +43,12 @@ codecs is planned.
   - Typical H.264 exports (1080p, up to 5 minutes) are usually below 100MB.
 - Video files have metadata based on NSF metadata (title, artist, copyright, track index).
 - Loop detection for FamiTracker NSF exports.
-- NSF2 features:
+- NSFe/NSF2 features:
   - Support for extended metadata - no more 32-character limits!
   - Support for individual title/artist fields for each song in a multi-track NSF.
   - Support for NSFe duration field.
+  - Support for custom VRC7 patches.
+    - YM2413 (OPLL) support is planned but not yet available.
   - Support for custom mixing is planned but not yet available.
 
 ## Installation

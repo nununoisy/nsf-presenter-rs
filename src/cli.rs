@@ -157,7 +157,7 @@ fn get_renderer_options() -> RendererOptions {
     let oh = matches.get_one::<u32>("oh")
         .cloned()
         .unwrap();
-    options.video_options.resolution_out = (ow, oh);
+    options.set_resolution_smart(ow, oh);
 
     if let Some(video_options) = matches.get_many::<(String, String)>("video-option") {
         for (k, v) in video_options.cloned() {
@@ -174,20 +174,18 @@ fn get_renderer_options() -> RendererOptions {
 
     if let Some(channel_settings) = matches.get_occurrences::<String>("channel-color") {
         for channel_setting_parts in channel_settings.map(Iterator::collect::<Vec<&String>>) {
-            let chip = channel_setting_parts.get(0)
-                .expect("Channel setting must have chip name")
-                .clone()
-                .clone();
-            let channel = channel_setting_parts.get(1)
-                .expect("Channel setting must have channel name")
-                .clone()
-                .clone();
+            let chip = channel_setting_parts
+                .get(0)
+                .expect("Channel setting must have chip name");
+            let channel = channel_setting_parts
+                .get(1)
+                .expect("Channel setting must have channel name");
 
-            let setting = options.channel_settings.get_mut(&(chip.clone(), channel.clone()))
-                .expect(format!("Unknown chip/channel specified: {} {}", chip.clone(), channel.clone()).as_str());
+            let setting = options.channel_settings.get_mut(&(chip.as_str().to_string(), channel.as_str().to_string()))
+                .expect(format!("Unknown chip/channel specified: {} {}", chip, channel).as_str());
 
             if setting.colors.len() != channel_setting_parts.len() - 2 {
-                panic!("Wrong number of colors specified for chip/channel {} {}: expected {} colors", chip.clone(), channel.clone(), setting.colors.len());
+                panic!("Wrong number of colors specified for chip/channel {} {}: expected {} colors", chip, channel, setting.colors.len());
             }
             setting.colors = channel_setting_parts.iter()
                 .skip(2)
@@ -198,17 +196,15 @@ fn get_renderer_options() -> RendererOptions {
 
     if let Some(hidden_channels) = matches.get_occurrences::<String>("hide-channel") {
         for hidden_channel_parts in hidden_channels.map(Iterator::collect::<Vec<&String>>) {
-            let chip = hidden_channel_parts.get(0)
-                .expect("Hidden channel must have chip name")
-                .clone()
-                .clone();
-            let channel = hidden_channel_parts.get(1)
-                .expect("Hidden channel must have channel name")
-                .clone()
-                .clone();
+            let chip = hidden_channel_parts
+                .get(0)
+                .expect("Hidden channel must have chip name");
+            let channel = hidden_channel_parts
+                .get(1)
+                .expect("Hidden channel must have channel name");
 
-            let setting = options.channel_settings.get_mut(&(chip.clone(), channel.clone()))
-                .expect(format!("Unknown chip/channel specified: {} {}", chip.clone(), channel.clone()).as_str());
+            let setting = options.channel_settings.get_mut(&(chip.as_str().to_string(), channel.as_str().to_string()))
+                .expect(format!("Unknown chip/channel specified: {} {}", chip, channel).as_str());
 
             setting.hidden = true;
         }
@@ -269,7 +265,7 @@ pub fn run() {
         write!(message, " rate={:.2}", current_encode_rate).unwrap();
 
         write!(message, "\nEMU]").unwrap();
-        write!(message, " {}", renderer.emulator_progress().unwrap()).unwrap();
+        write!(message, " {}", renderer.emulator_progress()).unwrap();
         write!(message, " fps={} avg_fps={}", renderer.instantaneous_fps(), renderer.average_fps()).unwrap();
 
         write!(message, "\nTIM]").unwrap();

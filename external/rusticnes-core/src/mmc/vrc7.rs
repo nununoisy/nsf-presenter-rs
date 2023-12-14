@@ -1139,7 +1139,7 @@ impl Vrc7Audio {
     
     pub fn set_patches(&mut self, patches: &[u8]) {
         // This isn't going to be called during emulation, so no need to refresh.
-        self.patches = patches.clone().try_into().unwrap_or(DEFAULT_PATCH_TABLE);
+        self.patches = patches.try_into().unwrap_or(DEFAULT_PATCH_TABLE);
     }
 }
 

@@ -6,6 +6,7 @@ use std::collections::vec_deque::VecDeque;
 use std::fs;
 use std::str;
 use std::rc::Rc;
+use anyhow::{Result, Context};
 use rusticnes_core::apu::FilterType;
 use rusticnes_ui_common::application::RuntimeState as RusticNESRuntimeState;
 use rusticnes_ui_common::events::Event;
@@ -133,9 +134,9 @@ impl Emulator {
         }
     }
 
-    pub fn open(&mut self, path: &str) -> Result<(), String> {
+    pub fn open(&mut self, path: &str) -> Result<()> {
         let cart_data = fs::read(path)
-            .map_err(|err| format!("Failed to read input file {}: {}", path, err))?;
+            .with_context(|| format!("Failed to read input file: {}", path))?;
         self.load(&cart_data);
         Ok(())
     }
@@ -160,7 +161,7 @@ impl Emulator {
         }
     }
 
-    pub fn nsf_metadata(&self) -> Result<Option<(String, String, String)>, String> {
+    pub fn nsf_metadata(&self) -> Result<Option<(String, String, String)>> {
         Ok(match (&self.nsf, &self.nsfe_metadata) {
             (None, _) => None,
             (Some(nsf), None) => Some({
@@ -182,10 +183,6 @@ impl Emulator {
 
     fn get_famitracker_song_position(&self, mut ptr: usize) -> SongPosition {
         if let Some(nsf) = &self.nsf {
-            // TODO: this is sometimes needed but other times not? Needs further investigation
-            // if nsf.vrc7() {
-            //     ptr += 1;
-            // }
             if nsf.fds() {
                 ptr += 2;
             }
@@ -258,8 +255,9 @@ impl Emulator {
         }
     }
 
-    pub fn get_piano_roll_size(&self) -> (u32, u32) {
-        (self.piano_roll_window.active_canvas().width, self.piano_roll_window.active_canvas().height)
+    pub fn set_piano_roll_size(&mut self, w: u32, h: u32) {
+        self.dispatch(Event::ApplyIntegerSetting("piano_roll.canvas_width".to_string(), w as i64));
+        self.dispatch(Event::ApplyIntegerSetting("piano_roll.canvas_height".to_string(), h as i64));
     }
 
     pub fn get_piano_roll_frame(&mut self) -> Vec<u8> {
@@ -348,14 +346,13 @@ impl Emulator {
         Some(result)
     }
 
-    pub fn progress(&self) -> Result<String, String> {
+    pub fn progress(&self) -> String {
         let generic_progress = format!("frame={}", self.runtime.nes.last_frame);
 
-        let result = match self.driver_progress() {
+        match self.driver_progress() {
             Some(driver_progress) => format!("{} {}", generic_progress, driver_progress),
             None => generic_progress
-        };
-        Ok(result)
+        }
     }
 
     pub fn channel_settings(&self) -> HashMap<(String, String), ChannelSettings> {
@@ -380,14 +377,18 @@ impl Emulator {
                 self.dispatch(Event::UnmuteChannel(chip.clone(), channel.clone()));
             }
 
-            for (i, color) in channel_settings.colors.iter().enumerate() {
-                let color_key = match (chip.as_str(), channel.as_str(), i) {
+            for (idx, color) in channel_settings.colors.iter().enumerate() {
+                let color_key = match (chip.as_str(), channel.as_str(), idx) {
                     ("2A03" | "MMC5" | "VRC6", "Pulse 1" | "Pulse 2", i) => format!("duty{}", i),
                     ("2A03", "Noise", i) => format!("mode{}", i),
+                    ("VRC6", "Sawtooth", i) => format!("mode{}", i),
                     ("N163", _, 0) => "gradient_low".to_string(),
                     ("N163", _, 1) => "gradient_high".to_string(),
-                    ("VRC7", _, _) => format!("patch{:X}", i),
-                    _ => "static".to_string()
+                    ("VRC7", _, i) => format!("patch{:X}", i),
+                    (_, _, i) => {
+                        debug_assert!(i == 0, "Settings not mapped properly for {} {}: missing color {}", chip, channel, i);
+                        "static".to_string()
+                    }
                 };
                 let color_value = match color.alpha() {
                     255 => format!("#{:02X}{:02X}{:02X}", color.r(), color.g(), color.b()),

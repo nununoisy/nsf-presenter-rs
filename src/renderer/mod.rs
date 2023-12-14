@@ -1,5 +1,6 @@
 pub mod options;
 
+use anyhow::Result;
 use std::collections::VecDeque;
 use std::fs;
 use std::time::{Duration, Instant};
@@ -22,11 +23,11 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(options: RendererOptions) -> Result<Self, String> {
+    pub fn new(options: RendererOptions) -> Result<Self> {
         let mut emulator = emulator::Emulator::new();
 
         match options.config_import_path.clone() {
-            Some(p) => emulator.init(Some(fs::read_to_string(p).map_err(|e| e.to_string())?.as_str())),
+            Some(p) => emulator.init(Some(fs::read_to_string(p)?.as_str())),
             None => emulator.init(None)
         };
         emulator.open(&options.input_path)?;
@@ -35,7 +36,7 @@ impl Renderer {
         emulator.apply_channel_settings(&options.channel_settings);
 
         let mut video_options = options.video_options.clone();
-        video_options.resolution_in = emulator.get_piano_roll_size();
+        emulator.set_piano_roll_size(video_options.resolution_in.0, video_options.resolution_in.1);
 
         match emulator.nsf_metadata() {
             Ok(Some((title, artist, copyright))) => {
@@ -62,7 +63,7 @@ impl Renderer {
         })
     }
 
-    pub fn start_encoding(&mut self) -> Result<(), String> {
+    pub fn start_encoding(&mut self) -> Result<()> {
         self.encode_start = Instant::now();
         self.video.start_encoding()?;
 
@@ -73,7 +74,7 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn step(&mut self) -> Result<bool, String> {
+    pub fn step(&mut self) -> Result<bool> {
         self.emulator.step();
 
         self.video.push_video_data(&self.emulator.get_piano_roll_frame())?;
@@ -106,7 +107,7 @@ impl Renderer {
         Ok(true)
     }
 
-    pub fn finish_encoding(&mut self) -> Result<(), String> {
+    pub fn finish_encoding(&mut self) -> Result<()> {
         self.video.finish_encoding()?;
 
         Ok(())
@@ -240,7 +241,7 @@ impl Renderer {
         }
     }
 
-    pub fn emulator_progress(&self) -> Result<String, String> {
+    pub fn emulator_progress(&self) -> String {
         self.emulator.progress()
     }
 }

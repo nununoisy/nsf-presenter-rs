@@ -1,5 +1,6 @@
 mod render_thread;
 
+use anyhow::{Result, Context};
 use slint;
 use slint::{Color, Model};
 use native_dialog::{FileDialog, MessageDialog, MessageType};
@@ -48,10 +49,9 @@ fn slint_color_component_arr<I: IntoIterator<Item = drawing::Color>>(a: I) -> sl
     slint::ModelRc::new(slint::VecModel::from(color_vecs))
 }
 
-fn get_module_metadata(path: &str) -> Result<ModuleMetadata, String> {
+fn get_module_metadata(path: &str) -> Result<ModuleMetadata> {
     let m3u_metadata = m3u_searcher::search(&path)?;
-    let cart_data = fs::read(path)
-        .map_err(|e| format!("Failed to read NSF: {}", e))?;
+    let cart_data = fs::read(path).context("Failed to read NSF")?;
     let nsf = Nsf::from(&cart_data);
     let nsfe_metadata = nsf.nsfe_metadata();
 
@@ -237,6 +237,10 @@ pub fn run() {
         slint_int_arr([color.red() as i32, color.green() as i32, color.blue() as i32])
     });
 
+    main_window.set_version(env!("CARGO_PKG_VERSION").into());
+    main_window.set_rusticnes_version("0.2.0-nsfp".into());
+    main_window.set_ffmpeg_version(crate::video_builder::ffmpeg_version().into());
+
     let options = Rc::new(RefCell::new(RendererOptions::default()));
 
     {
@@ -268,7 +272,7 @@ pub fn run() {
                     .unwrap()
                     .iter()
                     .collect();
-                let mut config = configs.iter_mut()
+                let config = configs.iter_mut()
                     .find(|cfg| cfg.name.to_string() == channel.clone())
                     .unwrap();
 
@@ -395,7 +399,9 @@ pub fn run() {
                     let main_window_weak = main_window_weak.clone();
                     slint::invoke_from_event_loop(move || {
                         main_window_weak.unwrap().set_rendering(false);
+                        main_window_weak.unwrap().set_progress_indeterminate(false);
                         main_window_weak.unwrap().set_progress_error(true);
+                        main_window_weak.unwrap().set_progress_title("Idle".into());
                         main_window_weak.unwrap().set_progress_status(format!("Render error: {}", e).into());
                     }).unwrap();
                 }
@@ -403,6 +409,7 @@ pub fn run() {
                     let main_window_weak = main_window_weak.clone();
                     slint::invoke_from_event_loop(move || {
                         main_window_weak.unwrap().set_rendering(true);
+                        main_window_weak.unwrap().set_progress_indeterminate(true);
                         main_window_weak.unwrap().set_progress_error(false);
                         main_window_weak.unwrap().set_progress(0.0);
                         main_window_weak.unwrap().set_progress_title("Setting up".into());
@@ -449,6 +456,7 @@ pub fn run() {
 
                     let main_window_weak = main_window_weak.clone();
                     slint::invoke_from_event_loop(move || {
+                        main_window_weak.unwrap().set_progress_indeterminate(p.expected_duration_frames.is_none());
                         main_window_weak.unwrap().set_progress(progress as f32);
                         main_window_weak.unwrap().set_progress_title(progress_title.into());
                         main_window_weak.unwrap().set_progress_status(progress_status.into());
@@ -458,6 +466,7 @@ pub fn run() {
                     let main_window_weak = main_window_weak.clone();
                     slint::invoke_from_event_loop(move || {
                         main_window_weak.unwrap().set_rendering(false);
+                        main_window_weak.unwrap().set_progress_indeterminate(false);
                         main_window_weak.unwrap().set_progress(1.0);
                         main_window_weak.unwrap().set_progress_title("Idle".into());
                         main_window_weak.unwrap().set_progress_status("Finished".into());
@@ -467,6 +476,7 @@ pub fn run() {
                     let main_window_weak = main_window_weak.clone();
                     slint::invoke_from_event_loop(move || {
                         main_window_weak.unwrap().set_rendering(false);
+                        main_window_weak.unwrap().set_progress_indeterminate(false);
                         main_window_weak.unwrap().set_progress_title("Idle".into());
                         main_window_weak.unwrap().set_progress_status("Render cancelled".into());
                     }).unwrap();
@@ -495,7 +505,7 @@ pub fn run() {
 
                             options.borrow_mut().input_path = path.into();
                         },
-                        Err(e) => display_error_dialog(&e)
+                        Err(e) => display_error_dialog(&e.to_string())
                     }
                 },
                 None => ()
@@ -634,7 +644,7 @@ pub fn run() {
                 display_error_dialog("Output resolution must be at least 960x540.");
                 return;
             }
-            options.borrow_mut().video_options.resolution_out = (ow, oh);
+            options.borrow_mut().set_resolution_smart(ow, oh);
 
             options.borrow_mut().famicom = main_window_weak.unwrap().get_famicom_mode();
             options.borrow_mut().high_quality = main_window_weak.unwrap().get_hq_filtering();

@@ -129,3 +129,17 @@ impl Default for RendererOptions {
         }
     }
 }
+
+impl RendererOptions {
+    pub fn set_resolution_smart(&mut self, w: u32, h: u32) {
+        self.video_options.resolution_out = (w, h);
+
+        self.video_options.resolution_in = if w >= h {
+            (960, ((960.0 / w as f32) * (h as f32)) as u32)
+        } else {
+            (((960.0 / h as f32) * (w as f32)) as u32, 960)
+        };
+
+        println!("{}x{}", self.video_options.resolution_in.0, self.video_options.resolution_in.1);
+    }
+}

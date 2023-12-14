@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::str;
 use crate::emulator::nsfeparser::{nsfe_to_nsf2, NsfeMetadata};
 use encoding_rs::{CoderResult, SHIFT_JIS};
@@ -50,7 +51,7 @@ pub fn decode_shift_jis(s: &[u8]) -> Option<String> {
 
 macro_rules! string_fn {
     ($name: tt, $offset: literal, $max_len: literal) => {
-        pub fn $name(&self) -> Result<String, String> {
+        pub fn $name(&self) -> Result<String> {
             self.parse_string($offset, $max_len)
         }
     }
@@ -106,7 +107,7 @@ impl Nsf {
         self.raw_bytes[7]
     }
 
-    fn parse_string(&self, offset: usize, max_len: usize) -> Result<String, String> {
+    fn parse_string(&self, offset: usize, max_len: usize) -> Result<String> {
         let end = (offset..offset+max_len)
             .position(|i| self.raw_bytes[i] == 0)
             .unwrap_or(max_len);
@@ -114,10 +115,7 @@ impl Nsf {
         if let Some(shift_jis) = decode_shift_jis(&self.raw_bytes[offset..offset+end]) {
             return Ok(shift_jis);
         }
-        match str::from_utf8(&self.raw_bytes[offset..offset+end]) {
-            Ok(s) => Ok(s.to_string()),
-            Err(e) => Err(e.to_string())
-        }
+        Ok(str::from_utf8(&self.raw_bytes[offset..offset+end])?.to_string())
     }
 
     string_fn!(title, 0xE, 0x20);

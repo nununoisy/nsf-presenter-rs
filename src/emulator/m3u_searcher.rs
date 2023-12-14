@@ -1,3 +1,4 @@
+use anyhow::{Result, Context};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -6,8 +7,8 @@ use std::time::Duration;
 use glob::{glob_with, MatchOptions};
 use encoding_rs::{CoderResult, WINDOWS_1252, SHIFT_JIS};
 
-fn read_m3u_file<P: AsRef<Path>>(m3u_path: P) -> Result<String, String> {
-    let data = fs::read(m3u_path).map_err(|e| e.to_string())?;
+fn read_m3u_file<P: AsRef<Path>>(m3u_path: P) -> Result<String> {
+    let data = fs::read(m3u_path)?;
     let mut result = String::with_capacity(data.len() * 4);
 
     let mut cp1252_decoder = WINDOWS_1252.new_decoder();
@@ -23,10 +24,10 @@ fn read_m3u_file<P: AsRef<Path>>(m3u_path: P) -> Result<String, String> {
         return Ok(result);
     }
 
-    String::from_utf8(data).map_err(|e| e.to_string())
+    String::from_utf8(data).context("M3U string is not valid CP-1252, Shift-JIS, or UTF-8")
 }
 
-pub fn search<P: AsRef<Path>>(nsf_path: P) -> Result<HashMap<u8, (String, Option<Duration>)>, String> {
+pub fn search<P: AsRef<Path>>(nsf_path: P) -> Result<HashMap<u8, (String, Option<Duration>)>> {
     let mut result: HashMap<u8, (String, Option<Duration>)> = HashMap::new();
 
     let nsf_filename = nsf_path.as_ref().file_name().unwrap().to_str().unwrap().to_string();
@@ -34,9 +35,8 @@ pub fn search<P: AsRef<Path>>(nsf_path: P) -> Result<HashMap<u8, (String, Option
     let mut nsf_dir = nsf_path
         .as_ref()
         .parent()
-        .ok_or("Invalid path".to_string())?
-        .canonicalize()
-        .map_err(|e| e.to_string())?;
+        .context("Invalid path")?
+        .canonicalize()?;
     nsf_dir.push("*.m3u");
 
     let mut nsf_dir = nsf_dir.to_str().unwrap().to_string();
@@ -49,11 +49,11 @@ pub fn search<P: AsRef<Path>>(nsf_path: P) -> Result<HashMap<u8, (String, Option
         require_literal_separator: false,
         require_literal_leading_dot: false,
     };
-    for glob_entry in glob_with(&nsf_dir, options).map_err(|e| e.to_string())? {
-        let m3u_path = glob_entry.map_err(|e| e.to_string())?;
+    for glob_entry in glob_with(&nsf_dir, options)? {
+        let m3u_path = glob_entry?;
         println!("Discovered M3U file: {}", m3u_path.file_name().unwrap().to_str().unwrap());
 
-        for line in read_m3u_file(m3u_path).map_err(|e| e.to_string())?.lines() {
+        for line in read_m3u_file(m3u_path)?.lines() {
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
@@ -75,10 +75,9 @@ pub fn search<P: AsRef<Path>>(nsf_path: P) -> Result<HashMap<u8, (String, Option
                 continue;
             }
 
-            let index = match u8::from_str(&component_iter.next().unwrap_or("".to_string())) {
-                Ok(i) => i.saturating_sub(1),
-                Err(e) => return Err(e.to_string())
-            };
+            let index = u8::from_str(&component_iter.next().unwrap_or("".to_string()))
+                .context("M3U track index is missing/invalid")?
+                .saturating_sub(1);
 
             let mut track_title = component_iter.next().unwrap_or("".to_string());
             if track_title.is_empty() {
@@ -91,13 +90,14 @@ pub fn search<P: AsRef<Path>>(nsf_path: P) -> Result<HashMap<u8, (String, Option
 
             let duration_seconds = component_iter.next().unwrap_or("".to_string())
                 .split(':')
-                .fold(0u64, |acc, cur| {
-                    let duration_component = u64::from_str(cur).unwrap_or_default();
-                    (acc * 60) + duration_component
+                .fold(0.0_f64, |acc, cur| {
+                    let duration_component = f64::from_str(cur).unwrap_or_default();
+                    (acc * 60.0) + duration_component
                 });
-            let duration = match duration_seconds {
-                0 => None,
-                _ => Some(Duration::from_secs(duration_seconds))
+            let duration = if duration_seconds > 0.0 {
+                Some(Duration::from_secs_f64(duration_seconds))
+            } else {
+                None
             };
 
             result.insert(index, (track_title, duration));
