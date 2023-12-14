@@ -425,7 +425,7 @@ pub fn run() {
                     };
                     // let elapsed_duration = FormattedDuration(p.elapsed_duration);
                     let eta_duration = match p.eta_duration {
-                        Some(duration) => HumanDuration(duration).to_string(),
+                        Some(duration) => HumanDuration(duration.saturating_sub(p.elapsed_duration)).to_string(),
                         None => "unknown time".to_string()
                     };
                     // let song_position = match p.song_position {
